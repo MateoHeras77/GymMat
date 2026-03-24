@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { startOfWeek, isAfter, subDays, startOfDay } from "date-fns"
@@ -85,7 +85,8 @@ export function DashboardPage() {
     return { thisWeek, streak, totalWorkouts }
   }, [sessions])
 
-  const recentSessions = sessions.slice(0, 5)
+  const [recentLimit, setRecentLimit] = useState(5)
+  const recentSessions = sessions.slice(0, recentLimit)
 
   return (
     <div className="space-y-6">
@@ -176,6 +177,15 @@ export function DashboardPage() {
                   </div>
                 </div>
               ))}
+              {sessions.length > recentLimit && (
+                <Button
+                  variant="ghost"
+                  className="w-full text-xs"
+                  onClick={() => setRecentLimit((l) => l + 5)}
+                >
+                  Show more ({sessions.length - recentLimit} remaining)
+                </Button>
+              )}
             </div>
           )}
         </CardContent>

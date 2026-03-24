@@ -35,6 +35,12 @@ import { formatWeight } from "@/lib/constants"
 
 // ─── Shared chart config ───
 
+const COLORS = {
+  strength: "#22c55e", // green-500
+  volume: "#3b82f6",   // blue-500
+  body: "#a78bfa",     // violet-400
+}
+
 const tooltipStyle = {
   backgroundColor: "hsl(var(--popover))",
   border: "1px solid hsl(var(--border))",
@@ -44,8 +50,8 @@ const tooltipStyle = {
 }
 
 const axisProps = {
-  tick: { fontSize: 11 },
-  stroke: "hsl(var(--muted-foreground))",
+  tick: { fontSize: 11, fill: "#e5e5e5" },
+  stroke: "#e5e5e5",
   tickLine: false,
   axisLine: false,
 }
@@ -204,12 +210,12 @@ function StrengthTab() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="strengthGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="0%" stopColor={COLORS.strength} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={COLORS.strength} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" {...axisProps} />
-                <YAxis {...axisProps} width={40} />
+                <YAxis {...axisProps} width={40} domain={["dataMin - 10", "dataMax + 10"]} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(value) => [`${value} lbs`, "Max Weight"]}
@@ -217,11 +223,11 @@ function StrengthTab() {
                 <Area
                   type="monotone"
                   dataKey="weight"
-                  stroke="hsl(var(--primary))"
+                  stroke={COLORS.strength}
                   strokeWidth={2}
                   fill="url(#strengthGradient)"
                   dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0 }}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: COLORS.strength }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -315,8 +321,8 @@ function VolumeTab() {
                 />
                 <Bar
                   dataKey="volume"
-                  fill="hsl(var(--chart-2))"
-                  opacity={0.85}
+                  fill={COLORS.volume}
+                  opacity={0.8}
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -449,6 +455,7 @@ function BodyTab() {
   const { measurements, isLoading, addMeasurement, deleteMeasurement } =
     useBodyMeasurements()
   const [showForm, setShowForm] = useState(false)
+  const [measurementLimit, setMeasurementLimit] = useState(5)
 
   const chartData = useMemo(() => {
     return [...measurements]
@@ -486,15 +493,15 @@ function BodyTab() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="bodyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+                    <stop offset="0%" stopColor={COLORS.body} stopOpacity={0.3} />
+                    <stop offset="100%" stopColor={COLORS.body} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" {...axisProps} />
                 <YAxis
                   {...axisProps}
                   width={40}
-                  domain={["auto", "auto"]}
+                  domain={["dataMin - 5", "dataMax + 5"]}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}
@@ -503,11 +510,11 @@ function BodyTab() {
                 <Area
                   type="monotone"
                   dataKey="weight"
-                  stroke="hsl(var(--chart-2))"
+                  stroke={COLORS.body}
                   strokeWidth={2}
                   fill="url(#bodyGradient)"
                   dot={false}
-                  activeDot={{ r: 4, strokeWidth: 0 }}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: COLORS.body }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -522,7 +529,7 @@ function BodyTab() {
             <CardTitle className="text-base">Recent Measurements</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {measurements.slice(0, 10).map((m) => (
+            {measurements.slice(0, measurementLimit).map((m) => (
               <div
                 key={m.id}
                 className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2.5"
@@ -561,6 +568,15 @@ function BodyTab() {
                 </Button>
               </div>
             ))}
+            {measurements.length > measurementLimit && (
+              <Button
+                variant="ghost"
+                className="w-full text-xs"
+                onClick={() => setMeasurementLimit((l) => l + 5)}
+              >
+                Show more ({measurements.length - measurementLimit} remaining)
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

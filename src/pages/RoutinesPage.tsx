@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -7,6 +8,7 @@ import { useRoutines } from "@/hooks/useRoutines"
 export function RoutinesPage() {
   const navigate = useNavigate()
   const { routines, isLoading, deleteRoutine } = useRoutines()
+  const [visibleCount, setVisibleCount] = useState(10)
 
   return (
     <div className="space-y-6">
@@ -42,7 +44,7 @@ export function RoutinesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {routines.map((routine) => (
+          {routines.slice(0, visibleCount).map((routine) => (
             <Card key={routine.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -96,6 +98,15 @@ export function RoutinesPage() {
               </CardContent>
             </Card>
           ))}
+          {routines.length > visibleCount && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs"
+              onClick={() => setVisibleCount((c) => c + 10)}
+            >
+              Show more ({routines.length - visibleCount} remaining)
+            </Button>
+          )}
         </div>
       )}
     </div>

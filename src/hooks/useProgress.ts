@@ -153,16 +153,20 @@ export function useUserExercises() {
 
       if (error) throw error
 
-      // Deduplicate
-      const seen = new Set<string>()
-      const unique: { id: string; name: string; body_part: string; target: string }[] = []
+      // Deduplicate and count sessions per exercise
+      const counts = new Map<string, { exercise: { id: string; name: string; body_part: string; target: string }; count: number }>()
       for (const row of data as unknown as { exercise_id: string; exercise: { id: string; name: string; body_part: string; target: string } }[]) {
-        if (!seen.has(row.exercise_id)) {
-          seen.add(row.exercise_id)
-          unique.push(row.exercise)
+        const existing = counts.get(row.exercise_id)
+        if (existing) {
+          existing.count++
+        } else {
+          counts.set(row.exercise_id, { exercise: row.exercise, count: 1 })
         }
       }
-      return unique
+      // Sort by most used first
+      return Array.from(counts.values())
+        .sort((a, b) => b.count - a.count)
+        .map((e) => e.exercise)
     },
     enabled: !!user,
   })

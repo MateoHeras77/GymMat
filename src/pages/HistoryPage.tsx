@@ -2,6 +2,7 @@ import { useState, useMemo } from "react"
 import { format, isSameDay } from "date-fns"
 import { Clock, Dumbbell, ChevronDown, Star, Trophy, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar"
 import {
@@ -18,6 +19,7 @@ export function HistoryPage() {
   const workoutDays = useWorkoutDays()
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(10)
 
   const filteredSessions = useMemo(() => {
     if (!selectedDate) return sessions
@@ -84,7 +86,7 @@ export function HistoryPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredSessions.map((session) => (
+          {filteredSessions.slice(0, visibleCount).map((session) => (
             <SessionCard
               key={session.id}
               session={session}
@@ -101,6 +103,15 @@ export function HistoryPage() {
               }}
             />
           ))}
+          {filteredSessions.length > visibleCount && (
+            <Button
+              variant="ghost"
+              className="w-full text-xs"
+              onClick={() => setVisibleCount((c) => c + 10)}
+            >
+              Show more ({filteredSessions.length - visibleCount} remaining)
+            </Button>
+          )}
         </div>
       )}
     </div>
