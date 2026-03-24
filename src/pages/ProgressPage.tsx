@@ -1,23 +1,23 @@
 import { useState, useMemo } from "react"
 import { format, startOfWeek } from "date-fns"
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  CartesianGrid,
 } from "recharts"
-import { Trophy, Plus, Trash2, Scale } from "lucide-react"
+import { Trophy, Plus, Trash2, Scale, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,25 @@ import {
 } from "@/hooks/useProgress"
 import { formatWeight } from "@/lib/constants"
 
+// ─── Shared chart config ───
+
+const tooltipStyle = {
+  backgroundColor: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 10,
+  fontSize: 12,
+  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+}
+
+const axisProps = {
+  tick: { fontSize: 11 },
+  stroke: "hsl(var(--muted-foreground))",
+  tickLine: false,
+  axisLine: false,
+}
+
+// ─── Page ───
+
 export function ProgressPage() {
   return (
     <div className="space-y-6">
@@ -42,7 +61,7 @@ export function ProgressPage() {
       </div>
 
       <Tabs defaultValue="strength">
-        <TabsList className="w-full">
+        <TabsList variant="line" className="w-full">
           <TabsTrigger value="strength" className="flex-1">
             Strength
           </TabsTrigger>
@@ -80,7 +99,6 @@ function StrengthTab() {
   const exercises = useUserExercises()
   const [selectedExercise, setSelectedExercise] = useState<string | undefined>()
 
-  // Auto-select first exercise
   const exerciseId = selectedExercise ?? exercises[0]?.id
 
   const { sets, isLoading } = useExerciseHistory(exerciseId)
@@ -88,7 +106,6 @@ function StrengthTab() {
   const chartData = useMemo(() => {
     if (!sets.length) return []
 
-    // Group by session date, take max weight per session
     const byDate = new Map<string, { maxWeight: number; maxVolume: number }>()
     for (const s of sets) {
       if (s.weight == null || s.set_type === "warmup") continue
@@ -110,11 +127,17 @@ function StrengthTab() {
     }))
   }, [sets])
 
+  // Compute stat card values
+  const latestWeight = chartData.length > 0 ? chartData[chartData.length - 1].weight : null
+  const prevWeight = chartData.length > 1 ? chartData[chartData.length - 2].weight : null
+  const delta = latestWeight != null && prevWeight != null ? latestWeight - prevWeight : null
+
   if (exercises.length === 0) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          Complete workouts to see your strength progress
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
+          <p className="text-sm">Complete workouts to see your strength progress</p>
         </CardContent>
       </Card>
     )
@@ -130,54 +153,77 @@ function StrengthTab() {
             variant={exerciseId === ex.id ? "default" : "outline"}
             className="cursor-pointer whitespace-nowrap capitalize"
             onClick={() => setSelectedExercise(ex.id)}
+            render={<button type="button" />}
           >
             {ex.name}
           </Badge>
         ))}
       </div>
 
+      {/* Stat highlight */}
+      {latestWeight != null && (
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-bold tracking-tight">
+            {latestWeight} lbs
+          </span>
+          {delta != null && delta !== 0 && (
+            <span
+              className={`flex items-center gap-0.5 text-sm font-medium ${
+                delta > 0 ? "text-emerald-500" : "text-red-400"
+              }`}
+            >
+              {delta > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5" />
+              )}
+              {delta > 0 ? "+" : ""}
+              {delta} lbs
+            </span>
+          )}
+          {delta === 0 && (
+            <span className="flex items-center gap-0.5 text-sm font-medium text-muted-foreground">
+              <Minus className="h-3.5 w-3.5" />
+              No change
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Max Weight (lbs)</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {isLoading ? (
-            <div className="h-48 animate-pulse rounded bg-secondary" />
+            <div className="h-[220px] animate-pulse rounded bg-secondary" />
           ) : chartData.length < 2 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-12 text-center text-sm text-muted-foreground">
               Need at least 2 sessions to show a chart
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                  width={40}
-                />
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="strengthGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" {...axisProps} />
+                <YAxis {...axisProps} width={40} />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
+                  contentStyle={tooltipStyle}
+                  formatter={(value) => [`${value} lbs`, "Max Weight"]}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="weight"
                   stroke="hsl(var(--primary))"
                   strokeWidth={2}
-                  dot={{ r: 3 }}
+                  fill="url(#strengthGradient)"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           )}
         </CardContent>
@@ -194,7 +240,6 @@ function VolumeTab() {
   const chartData = useMemo(() => {
     if (!weeklyData.length) return []
 
-    // Group by week
     const byWeek = new Map<string, number>()
     for (const s of weeklyData) {
       const weekStart = startOfWeek(new Date(s.session.started_at), {
@@ -211,54 +256,75 @@ function VolumeTab() {
     }))
   }, [weeklyData])
 
+  // Compute stat card values
+  const thisWeek = chartData.length > 0 ? chartData[chartData.length - 1].volume : null
+  const lastWeek = chartData.length > 1 ? chartData[chartData.length - 2].volume : null
+  const pctChange =
+    thisWeek != null && lastWeek != null && lastWeek > 0
+      ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100)
+      : null
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Weekly Volume (lbs)</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="h-48 animate-pulse rounded bg-secondary" />
-        ) : chartData.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Complete workouts to see volume trends
-          </p>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis
-                dataKey="week"
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                stroke="hsl(var(--muted-foreground))"
-                width={50}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                formatter={(value) => [
-                  `${Number(value).toLocaleString()} lbs`,
-                  "Volume",
-                ]}
-              />
-              <Bar
-                dataKey="volume"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {/* Stat highlight */}
+      {thisWeek != null && (
+        <div className="flex items-baseline gap-3">
+          <span className="text-3xl font-bold tracking-tight">
+            {thisWeek.toLocaleString()} lbs
+          </span>
+          {pctChange != null && pctChange !== 0 && (
+            <span
+              className={`flex items-center gap-0.5 text-sm font-medium ${
+                pctChange > 0 ? "text-emerald-500" : "text-red-400"
+              }`}
+            >
+              {pctChange > 0 ? (
+                <TrendingUp className="h-3.5 w-3.5" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5" />
+              )}
+              {pctChange > 0 ? "+" : ""}
+              {pctChange}%
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground">this week</span>
+        </div>
+      )}
+
+      {/* Chart */}
+      <Card>
+        <CardContent className="pt-4">
+          {isLoading ? (
+            <div className="h-[220px] animate-pulse rounded bg-secondary" />
+          ) : chartData.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              <TrendingUp className="mx-auto mb-3 h-8 w-8 opacity-40" />
+              Complete workouts to see volume trends
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={chartData}>
+                <XAxis dataKey="week" {...axisProps} />
+                <YAxis {...axisProps} width={50} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value) => [
+                    `${Number(value).toLocaleString()} lbs`,
+                    "Volume",
+                  ]}
+                />
+                <Bar
+                  dataKey="volume"
+                  fill="hsl(var(--chart-2))"
+                  opacity={0.85}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -267,7 +333,6 @@ function VolumeTab() {
 function PRsTab() {
   const { records, isLoading } = usePersonalRecords()
 
-  // Group PRs by exercise
   const grouped = useMemo(() => {
     const map = new Map<
       string,
@@ -287,13 +352,13 @@ function PRsTab() {
     return Array.from(map.values())
   }, [records])
 
+  const totalPRs = records.length
+
   if (isLoading) {
     return (
       <div className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <Card key={i} className="animate-pulse">
-            <CardContent className="h-20 pt-4" />
-          </Card>
+          <div key={i} className="h-20 animate-pulse rounded-lg bg-secondary" />
         ))}
       </div>
     )
@@ -302,9 +367,10 @@ function PRsTab() {
   if (grouped.length === 0) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          <Trophy className="mx-auto mb-2 h-8 w-8 text-yellow-500" />
-          No personal records yet. Complete workouts to set PRs!
+        <CardContent className="py-12 text-center text-muted-foreground">
+          <Trophy className="mx-auto mb-3 h-8 w-8 text-yellow-500/50" />
+          <p className="text-sm">No personal records yet.</p>
+          <p className="text-xs mt-1">Complete workouts to set PRs!</p>
         </CardContent>
       </Card>
     )
@@ -337,36 +403,42 @@ function PRsTab() {
   }
 
   return (
-    <div className="space-y-3">
-      {grouped.map((group) => (
-        <Card key={group.name}>
-          <CardContent className="py-3">
+    <div className="space-y-4">
+      {/* Summary */}
+      <p className="text-xs text-muted-foreground">
+        {totalPRs} personal record{totalPRs !== 1 ? "s" : ""} across{" "}
+        {grouped.length} exercise{grouped.length !== 1 ? "s" : ""}
+      </p>
+
+      {/* PR list */}
+      <div className="space-y-4">
+        {grouped.map((group, gi) => (
+          <div key={group.name}>
+            {gi > 0 && <Separator className="mb-4" />}
             <p className="text-sm font-semibold capitalize">{group.name}</p>
             <p className="text-xs text-muted-foreground capitalize mb-2">
               {group.bodyPart}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-1.5">
               {group.prs.map((pr) => (
                 <div
                   key={pr.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-secondary px-2.5 py-1.5"
+                  className="flex items-center gap-3 rounded-lg px-1 py-1.5"
                 >
-                  <Trophy className="h-3 w-3 text-yellow-500" />
-                  <div>
-                    <p className="text-xs font-medium">
-                      {prValue(pr.record_type, Number(pr.value))}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {prLabel(pr.record_type)} ·{" "}
-                      {format(new Date(pr.achieved_at), "MMM d")}
-                    </p>
-                  </div>
+                  <Trophy className="h-4 w-4 shrink-0 text-yellow-500" />
+                  <span className="text-sm font-semibold">
+                    {prValue(pr.record_type, Number(pr.value))}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {prLabel(pr.record_type)} ·{" "}
+                    {format(new Date(pr.achieved_at), "MMM d")}
+                  </span>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -403,46 +475,41 @@ function BodyTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="h-48 animate-pulse rounded bg-secondary" />
+            <div className="h-[220px] animate-pulse rounded bg-secondary" />
           ) : chartData.length < 2 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              <Scale className="mx-auto mb-3 h-8 w-8 opacity-40" />
               Add at least 2 measurements to see a chart
             </p>
           ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chartData}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(var(--muted-foreground))"
-                />
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="bodyGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.15} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" {...axisProps} />
                 <YAxis
-                  tick={{ fontSize: 11 }}
-                  stroke="hsl(var(--muted-foreground))"
+                  {...axisProps}
                   width={40}
                   domain={["auto", "auto"]}
                 />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
+                  contentStyle={tooltipStyle}
                   formatter={(value) => [`${value} lbs`, "Weight"]}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="weight"
                   stroke="hsl(var(--chart-2))"
                   strokeWidth={2}
-                  dot={{ r: 3 }}
+                  fill="url(#bodyGradient)"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           )}
         </CardContent>
@@ -458,16 +525,16 @@ function BodyTab() {
             {measurements.slice(0, 10).map((m) => (
               <div
                 key={m.id}
-                className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2"
+                className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2.5"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {format(new Date(m.measured_at), "MMM d, yyyy")}
                   </p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
                     {m.body_weight != null && (
-                      <span>
-                        <Scale className="mr-0.5 inline h-3 w-3" />
+                      <span className="flex items-center gap-0.5">
+                        <Scale className="h-3 w-3" />
                         {Number(m.body_weight)} lbs
                       </span>
                     )}
@@ -481,8 +548,9 @@ function BodyTab() {
                     )}
                   </div>
                 </div>
-                <button
-                  className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-destructive/10"
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => {
                     if (confirm("Delete this measurement?")) {
                       deleteMeasurement.mutate(m.id)
@@ -490,7 +558,7 @@ function BodyTab() {
                   }}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </button>
+                </Button>
               </div>
             ))}
           </CardContent>
