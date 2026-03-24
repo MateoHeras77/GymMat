@@ -4,10 +4,18 @@
 @import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover {
+      @slot;
+    }
+  }
+}
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    touch-action: manipulation;
   }
   body {
     @apply bg-background text-foreground;

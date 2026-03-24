@@ -111,6 +111,7 @@ export function ExercisePicker({
               variant={bodyPart === "all" ? "default" : "outline"}
               className="cursor-pointer whitespace-nowrap"
               onClick={() => setBodyPart("all")}
+              render={<button type="button" />}
             >
               All
             </Badge>
@@ -120,6 +121,7 @@ export function ExercisePicker({
                 variant={bodyPart === bp ? "default" : "outline"}
                 className="cursor-pointer whitespace-nowrap capitalize"
                 onClick={() => setBodyPart(bp)}
+                render={<button type="button" />}
               >
                 {bp}
               </Badge>
