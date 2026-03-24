@@ -1,17 +1,30 @@
 import { create } from "zustand"
-import { playTimerBeep } from "@/lib/audioManager"
+import { startSilentLoop, playAlarm, stopAudio } from "@/lib/audioManager"
+import {
+  registerTimerActions,
+  updateTimerMetadata,
+  setPlaybackState,
+  clearSession,
+} from "@/lib/mediaSessionManager"
+
+export interface TimerContext {
+  exerciseName?: string
+  setInfo?: string
+}
 
 interface TimerState {
   isRunning: boolean
   totalSeconds: number
   remainingSeconds: number
   intervalId: number | null
-  /** Wall-clock timestamp (ms) when the timer should finish */
   endsAt: number | null
+  context: TimerContext | null
 
-  startTimer: (seconds: number) => void
+  startTimer: (seconds: number, context?: TimerContext) => void
   stopTimer: () => void
   resetTimer: () => void
+  skipRest: () => void
+  addTime: (seconds: number) => void
 }
 
 export const useTimerStore = create<TimerState>()((set, get) => ({
@@ -20,8 +33,9 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
   remainingSeconds: 0,
   intervalId: null,
   endsAt: null,
+  context: null,
 
-  startTimer: (seconds: number) => {
+  startTimer: (seconds: number, context?: TimerContext) => {
     const state = get()
     if (state.intervalId) {
       clearInterval(state.intervalId)
@@ -29,10 +43,27 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
 
     const endsAt = Date.now() + seconds * 1000
 
-    /* iOS PWA workaround: use wall-clock comparison instead of decrementing a counter.
-       iOS Safari throttles setInterval to ~60s+ when the tab is backgrounded or the
-       screen is locked. By comparing against Date.now() on each tick, the timer
-       "catches up" instantly when the user returns to the app. */
+    // Start silent audio loop (keeps iOS audio session alive in background)
+    startSilentLoop()
+
+    // Register lock screen controls
+    registerTimerActions({
+      onPause: () => get().stopTimer(),
+      onPlay: () => {
+        // Resume: recalculate endsAt from remaining
+        const s = get()
+        if (!s.isRunning && s.remainingSeconds > 0) {
+          s.startTimer(s.remainingSeconds, s.context ?? undefined)
+        }
+      },
+      onSkip: () => get().skipRest(),
+      onAddTime: () => get().addTime(30),
+    })
+
+    // Set initial lock screen metadata
+    updateTimerMetadata(seconds, seconds, context)
+    setPlaybackState("playing")
+
     const id = window.setInterval(() => {
       const current = get()
       if (!current.endsAt) return
@@ -40,17 +71,22 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       const remaining = Math.max(0, Math.ceil((current.endsAt - Date.now()) / 1000))
 
       if (remaining <= 0) {
-        // Timer done
         clearInterval(current.intervalId!)
         set({ isRunning: false, remainingSeconds: 0, intervalId: null, endsAt: null })
 
-        // Alert user: vibrate (Android) + sound (all platforms)
+        // Alert: vibrate + alarm sound
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 200])
         }
-        playTimerBeep()
+        playAlarm()
+
+        // Update lock screen to "Rest Complete!"
+        updateTimerMetadata(0, current.totalSeconds, current.context ?? undefined)
+        setPlaybackState("paused")
       } else {
         set({ remainingSeconds: remaining })
+        // Update lock screen countdown
+        updateTimerMetadata(remaining, current.totalSeconds, current.context ?? undefined)
       }
     }, 1000)
 
@@ -60,6 +96,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       remainingSeconds: seconds,
       intervalId: id,
       endsAt,
+      context: context ?? null,
     })
   },
 
@@ -69,6 +106,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       clearInterval(state.intervalId)
     }
     set({ isRunning: false, intervalId: null, endsAt: null })
+    setPlaybackState("paused")
   },
 
   resetTimer: () => {
@@ -76,12 +114,46 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
     if (state.intervalId) {
       clearInterval(state.intervalId)
     }
+    stopAudio()
+    clearSession()
     set({
       isRunning: false,
       totalSeconds: 0,
       remainingSeconds: 0,
       intervalId: null,
       endsAt: null,
+      context: null,
     })
+  },
+
+  skipRest: () => {
+    const state = get()
+    if (state.intervalId) {
+      clearInterval(state.intervalId)
+    }
+    stopAudio()
+    clearSession()
+    set({
+      isRunning: false,
+      totalSeconds: 0,
+      remainingSeconds: 0,
+      intervalId: null,
+      endsAt: null,
+      context: null,
+    })
+  },
+
+  addTime: (seconds: number) => {
+    const state = get()
+    if (!state.endsAt) return
+    const newEndsAt = state.endsAt + seconds * 1000
+    const newTotal = state.totalSeconds + seconds
+    const newRemaining = Math.max(0, Math.ceil((newEndsAt - Date.now()) / 1000))
+    set({
+      endsAt: newEndsAt,
+      totalSeconds: newTotal,
+      remainingSeconds: newRemaining,
+    })
+    updateTimerMetadata(newRemaining, newTotal, state.context ?? undefined)
   },
 }))
