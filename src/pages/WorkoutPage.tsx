@@ -300,9 +300,8 @@ export function WorkoutPage() {
             onChangeSetType={(setIndex, type) =>
               changeSetType(currentExerciseIndex, setIndex, type)
             }
-            onRestTimer={(seconds, context) => startTimer(seconds, context)}
+            onRestTimer={(seconds) => startTimer(seconds)}
             restSeconds={currentExercise.restSeconds}
-            exerciseName={currentExercise.exerciseName}
           />
         </div>
       )}

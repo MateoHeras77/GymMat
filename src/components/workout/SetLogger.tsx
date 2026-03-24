@@ -15,9 +15,8 @@ interface SetLoggerProps {
   onAddSet: () => void
   onRemoveSet: (setIndex: number) => void
   onChangeSetType: (setIndex: number, type: ActiveSet["setType"]) => void
-  onRestTimer: (seconds: number, context?: { exerciseName?: string; setInfo?: string }) => void
+  onRestTimer: (seconds: number) => void
   restSeconds: number
-  exerciseName?: string
 }
 
 const SET_TYPES: { value: ActiveSet["setType"]; label: string; color: string }[] = [
@@ -37,7 +36,6 @@ export function SetLogger({
   onChangeSetType,
   onRestTimer,
   restSeconds,
-  exerciseName,
 }: SetLoggerProps) {
   return (
     <div className="space-y-1">
@@ -144,10 +142,7 @@ export function SetLogger({
                   if (s.reps != null && s.reps > 0) {
                     onCompleteSet(i)
                     if (restSeconds > 0) {
-                      onRestTimer(restSeconds, {
-                        exerciseName,
-                        setInfo: `Set ${i + 1} of ${sets.length}`,
-                      })
+                      onRestTimer(restSeconds)
                     }
                   }
                 }}
