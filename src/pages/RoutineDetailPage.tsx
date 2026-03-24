@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft,
   Plus,
@@ -23,9 +23,12 @@ import { useRoutines } from "@/hooks/useRoutines"
 import { ExercisePicker } from "@/components/exercises/ExercisePicker"
 import { ExerciseConfigSheet } from "@/components/routines/ExerciseConfigSheet"
 import { downloadExerciseGif } from "@/services/gifService"
+import { useActiveWorkoutStore, type ActiveExercise } from "@/stores/activeWorkoutStore"
 import { getGifUrl } from "@/types/exercise"
 import type { Routine } from "@/types/routine"
 import type { Exercise } from "@/types/exercise"
+import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
+import { toast } from "sonner"
 
 export function RoutineDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -35,6 +38,10 @@ export function RoutineDetailPage() {
     useState<RoutineExerciseWithDetails | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
   const [downloadingGif, setDownloadingGif] = useState<string | null>(null)
+  const [previewGif, setPreviewGif] = useState<{
+    url: string; name: string
+  } | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: routine, isLoading: routineLoading } = useQuery({
     queryKey: ["routine", id],
@@ -61,6 +68,32 @@ export function RoutineDetailPage() {
   } = useRoutineExercises(id)
 
   const { deleteRoutine } = useRoutines()
+  const { isActive, cancelWorkout, startWorkout } = useActiveWorkoutStore()
+
+  const handleStartWorkout = () => {
+    if (!routine) return
+
+    if (isActive) {
+      if (!confirm("You have an active workout in progress. Start a new one? Current progress will be lost.")) {
+        return
+      }
+      cancelWorkout()
+    }
+
+    const activeExercises: ActiveExercise[] = routineExercises.map((re) => ({
+      exerciseId: re.exercise_id,
+      exerciseName: re.exercise.name,
+      gifUrl: getGifUrl(re.exercise),
+      targetSets: re.target_sets,
+      targetReps: re.target_reps,
+      targetWeight: re.target_weight ? Number(re.target_weight) : null,
+      restSeconds: re.rest_seconds,
+      sets: [],
+    }))
+
+    startWorkout(routine.id, routine.name, activeExercises)
+    navigate("/workout")
+  }
 
   const handleConfirmExercises = async (
     toAdd: Exercise[],
@@ -85,8 +118,13 @@ export function RoutineDetailPage() {
       // Download GIF in background if not already downloaded
       if (!exercise.gif_url_180 && !exercise.gif_url_hd) {
         setDownloadingGif(exercise.id)
-        await downloadExerciseGif(exercise.id)
+        const url = await downloadExerciseGif(exercise.id)
         setDownloadingGif(null)
+        if (url) {
+          queryClient.invalidateQueries({ queryKey: ["routine-exercises", id] })
+        } else {
+          toast.error(`Could not download GIF for ${exercise.name}`)
+        }
       }
     }
   }
@@ -206,7 +244,7 @@ export function RoutineDetailPage() {
         <Button
           className="w-full"
           size="lg"
-          onClick={() => navigate(`/workout?routine=${id}`)}
+          onClick={handleStartWorkout}
         >
           <Play className="mr-2 h-4 w-4" />
           Start Workout
@@ -270,12 +308,20 @@ export function RoutineDetailPage() {
                           <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                         </div>
                       ) : gifUrl ? (
-                        <img
-                          src={gifUrl}
-                          alt={re.exercise.name}
-                          className="h-12 w-12 rounded-md object-cover"
-                          loading="lazy"
-                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPreviewGif({ url: gifUrl, name: re.exercise.name })
+                          }}
+                        >
+                          <img
+                            src={gifUrl}
+                            alt={re.exercise.name}
+                            className="h-12 w-12 rounded-md object-cover"
+                            loading="lazy"
+                          />
+                        </button>
                       ) : (
                         <div className="flex h-12 w-12 items-center justify-center rounded-md bg-secondary text-muted-foreground">
                           <span className="text-[10px] text-center leading-tight">
@@ -356,6 +402,14 @@ export function RoutineDetailPage() {
         open={configOpen}
         onOpenChange={setConfigOpen}
         onSave={handleConfigSave}
+      />
+
+      {/* GIF Preview */}
+      <GifPreviewDialog
+        open={!!previewGif}
+        onOpenChange={(open) => !open && setPreviewGif(null)}
+        gifUrl={previewGif?.url ?? ""}
+        exerciseName={previewGif?.name ?? ""}
       />
     </div>
   )

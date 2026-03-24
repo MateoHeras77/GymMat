@@ -74,13 +74,22 @@ function generateSetId(): string {
   return Math.random().toString(36).substring(2, 10)
 }
 
+function parseTargetReps(targetReps: string): number | null {
+  // Handle ranges like "8-12" → take the higher end
+  const match = targetReps.match(/(\d+)\s*[-–]\s*(\d+)/)
+  if (match) return parseInt(match[2])
+  const single = parseInt(targetReps)
+  return isNaN(single) ? null : single
+}
+
 function createSetsForExercise(exercise: ActiveExercise): ActiveSet[] {
+  const reps = parseTargetReps(exercise.targetReps)
   return Array.from({ length: exercise.targetSets }, (_, i) => ({
     id: generateSetId(),
     exerciseId: exercise.exerciseId,
     setNumber: i + 1,
     setType: "working" as const,
-    reps: null,
+    reps,
     weight: exercise.targetWeight,
     completed: false,
     isPR: false,

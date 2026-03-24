@@ -11,6 +11,11 @@ const API_KEY = import.meta.env.VITE_EXERCISEDB_API_KEY
 export async function downloadExerciseGif(
   exerciseId: string
 ): Promise<string | null> {
+  if (!API_KEY) {
+    console.warn("VITE_EXERCISEDB_API_KEY is not set — cannot download exercise GIFs")
+    return null
+  }
+
   try {
     // Check if GIF already exists
     const { data: exercise } = await supabase

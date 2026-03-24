@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom"
-import { Plus } from "lucide-react"
+import { Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRoutines } from "@/hooks/useRoutines"
 
 export function RoutinesPage() {
   const navigate = useNavigate()
-  const { routines, isLoading } = useRoutines()
+  const { routines, isLoading, deleteRoutine } = useRoutines()
 
   return (
     <div className="space-y-6">
@@ -43,21 +43,47 @@ export function RoutinesPage() {
       ) : (
         <div className="space-y-3">
           {routines.map((routine) => (
-            <Card
-              key={routine.id}
-              className="cursor-pointer transition-colors hover:bg-accent"
-              onClick={() => navigate(`/routines/${routine.id}`)}
-            >
+            <Card key={routine.id}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{routine.name}</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle
+                    className="text-base cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => navigate(`/routines/${routine.id}`)}
+                  >
+                    {routine.name}
+                  </CardTitle>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => navigate(`/routines/${routine.id}`)}
+                      title="Edit"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm("Delete this routine?")) {
+                          deleteRoutine.mutate(routine.id)
+                        }
+                      }}
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="pb-3">
+              <CardContent
+                className="pb-3 cursor-pointer"
+                onClick={() => navigate(`/routines/${routine.id}`)}
+              >
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {routine.template_type && (
-                    <span className="rounded-full bg-secondary px-2 py-0.5 capitalize">
-                      {routine.template_type}
-                    </span>
-                  )}
                   {routine.estimated_duration_min && (
                     <span>{routine.estimated_duration_min} min</span>
                   )}

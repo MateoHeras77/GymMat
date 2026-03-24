@@ -7,6 +7,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useActiveWorkoutStore } from "@/stores/activeWorkoutStore"
 
 const navItems: readonly {
   to: string
@@ -22,6 +23,8 @@ const navItems: readonly {
 ]
 
 export function BottomNav() {
+  const workoutActive = useActiveWorkoutStore((s) => s.isActive)
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 safe-bottom">
       <div className="mx-auto flex h-16 max-w-lg items-center justify-around px-2">
@@ -44,13 +47,19 @@ export function BottomNav() {
                 {item.isCenter ? (
                   <div
                     className={cn(
-                      "flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
+                      "relative flex h-12 w-12 items-center justify-center rounded-full shadow-lg",
                       isActive
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-secondary-foreground"
                     )}
                   >
                     <item.icon className="h-5 w-5" />
+                    {workoutActive && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-green-500" />
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <item.icon className="h-5 w-5" />

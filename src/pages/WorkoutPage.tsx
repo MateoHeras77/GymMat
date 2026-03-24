@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 import {
   Play,
   Dumbbell,
@@ -12,10 +11,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/lib/supabase"
 import {
   useActiveWorkoutStore,
-  type ActiveExercise,
   type WorkoutResult,
 } from "@/stores/activeWorkoutStore"
 import { useTimerStore } from "@/stores/timerStore"
@@ -23,17 +20,14 @@ import { useAuth } from "@/hooks/useAuth"
 import { SetLogger } from "@/components/workout/SetLogger"
 import { RestTimer } from "@/components/workout/RestTimer"
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary"
-import { saveWorkout } from "@/services/workoutService"
-import { getGifUrl } from "@/types/exercise"
+import { saveWorkoutWithOfflineSupport } from "@/services/workoutService"
+import { toast } from "sonner"
+import { usePreviousSets } from "@/hooks/usePreviousSets"
 import { formatDuration } from "@/lib/constants"
-import type { Routine } from "@/types/routine"
-import type { RoutineExercise } from "@/types/routine"
-import type { Exercise } from "@/types/exercise"
+import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
 
 export function WorkoutPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const routineId = searchParams.get("routine")
   const { user } = useAuth()
 
   const {
@@ -42,7 +36,6 @@ export function WorkoutPage() {
     startedAt,
     currentExerciseIndex,
     exercises,
-    startWorkout,
     setCurrentExercise,
     updateSet,
     completeSet,
@@ -57,58 +50,9 @@ export function WorkoutPage() {
   const [workoutResult, setWorkoutResult] = useState<WorkoutResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [elapsed, setElapsed] = useState(0)
-
-  // Fetch routine data if starting from a routine
-  const { data: routineData } = useQuery({
-    queryKey: ["routine-start", routineId],
-    queryFn: async () => {
-      if (!routineId) return null
-
-      const [routineRes, exercisesRes] = await Promise.all([
-        supabase.from("routines").select("*").eq("id", routineId).single(),
-        supabase
-          .from("routine_exercises")
-          .select("*, exercise:exercises(*)")
-          .eq("routine_id", routineId)
-          .order("sort_order"),
-      ])
-
-      if (routineRes.error) throw routineRes.error
-      if (exercisesRes.error) throw exercisesRes.error
-
-      return {
-        routine: routineRes.data as Routine,
-        exercises: exercisesRes.data as (RoutineExercise & {
-          exercise: Exercise
-        })[],
-      }
-    },
-    enabled: !!routineId && !isActive,
-  })
-
-  // Auto-start workout if routine data loaded
-  useEffect(() => {
-    if (routineData && !isActive && !workoutResult) {
-      const activeExercises: ActiveExercise[] = routineData.exercises.map(
-        (re) => ({
-          exerciseId: re.exercise_id,
-          exerciseName: re.exercise.name,
-          gifUrl: getGifUrl(re.exercise),
-          targetSets: re.target_sets,
-          targetReps: re.target_reps,
-          targetWeight: re.target_weight ? Number(re.target_weight) : null,
-          restSeconds: re.rest_seconds,
-          sets: [],
-        })
-      )
-
-      startWorkout(
-        routineData.routine.id,
-        routineData.routine.name,
-        activeExercises
-      )
-    }
-  }, [routineData, isActive, workoutResult, startWorkout])
+  const [previewGif, setPreviewGif] = useState<{
+    url: string; name: string
+  } | null>(null)
 
   // Elapsed time ticker
   useEffect(() => {
@@ -124,6 +68,7 @@ export function WorkoutPage() {
   }, [isActive, startedAt])
 
   const currentExercise = exercises[currentExerciseIndex]
+  const previousSets = usePreviousSets(currentExercise?.exerciseId)
 
   const handleFinish = () => {
     const completedSets = exercises.flatMap((ex) =>
@@ -147,11 +92,15 @@ export function WorkoutPage() {
     if (!workoutResult || !user) return
     setSaving(true)
     try {
-      await saveWorkout(user.id, workoutResult, rating)
+      const result = await saveWorkoutWithOfflineSupport(user.id, workoutResult, rating)
+      if (result === "queued") {
+        toast.info("Workout saved offline. It will sync when you're back online.")
+      }
       setWorkoutResult(null)
       navigate("/")
     } catch (err) {
       console.error("Failed to save workout:", err)
+      toast.error("Failed to save workout. Please try again.")
       setSaving(false)
     }
   }
@@ -283,11 +232,21 @@ export function WorkoutPage() {
           <Card>
             <CardContent className="flex items-center gap-3 py-3">
               {currentExercise.gifUrl ? (
-                <img
-                  src={currentExercise.gifUrl}
-                  alt={currentExercise.exerciseName}
-                  className="h-20 w-20 rounded-lg object-cover"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPreviewGif({
+                      url: currentExercise.gifUrl!,
+                      name: currentExercise.exerciseName,
+                    })
+                  }
+                >
+                  <img
+                    src={currentExercise.gifUrl}
+                    alt={currentExercise.exerciseName}
+                    className="h-20 w-20 rounded-lg object-cover"
+                  />
+                </button>
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-secondary">
                   <Dumbbell className="h-8 w-8 text-muted-foreground" />
@@ -314,6 +273,7 @@ export function WorkoutPage() {
           <SetLogger
             sets={currentExercise.sets}
             targetReps={currentExercise.targetReps}
+            previousSets={previousSets}
             onUpdateSet={(setIndex, updates) =>
               updateSet(currentExerciseIndex, setIndex, updates)
             }
@@ -342,6 +302,14 @@ export function WorkoutPage() {
           />
         </div>
       )}
+
+      {/* GIF Preview */}
+      <GifPreviewDialog
+        open={!!previewGif}
+        onOpenChange={(open) => !open && setPreviewGif(null)}
+        gifUrl={previewGif?.url ?? ""}
+        exerciseName={previewGif?.name ?? ""}
+      />
 
       {/* Rest Timer overlay */}
       <RestTimer />

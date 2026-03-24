@@ -12,6 +12,7 @@ import {
 import { useExercises } from "@/hooks/useExercises"
 import { getGifUrl } from "@/types/exercise"
 import type { Exercise } from "@/types/exercise"
+import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
 
 interface ExercisePickerProps {
   open: boolean
@@ -30,6 +31,9 @@ export function ExercisePicker({
   const [bodyPart, setBodyPart] = useState("all")
   const [toAdd, setToAdd] = useState<Exercise[]>([])
   const [toRemove, setToRemove] = useState<Set<string>>(new Set())
+  const [previewGif, setPreviewGif] = useState<{
+    url: string; name: string
+  } | null>(null)
 
   const { exercises, bodyParts } = useExercises({ search, bodyPart })
 
@@ -164,12 +168,21 @@ export function ExercisePicker({
                   onClick={() => handleToggle(exercise)}
                 >
                   {gifUrl ? (
-                    <img
-                      src={gifUrl}
-                      alt={exercise.name}
-                      className="h-11 w-11 rounded-md object-cover"
-                      loading="lazy"
-                    />
+                    <button
+                      type="button"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewGif({ url: gifUrl, name: exercise.name })
+                      }}
+                    >
+                      <img
+                        src={gifUrl}
+                        alt={exercise.name}
+                        className="h-11 w-11 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    </button>
                   ) : (
                     <div className="flex h-11 w-11 items-center justify-center rounded-md bg-secondary text-muted-foreground">
                       <span className="text-[10px] text-center leading-tight">
@@ -211,6 +224,14 @@ export function ExercisePicker({
           {buttonLabel()}
         </Button>
       </DialogContent>
+
+      {/* GIF Preview */}
+      <GifPreviewDialog
+        open={!!previewGif}
+        onOpenChange={(open) => !open && setPreviewGif(null)}
+        gifUrl={previewGif?.url ?? ""}
+        exerciseName={previewGif?.name ?? ""}
+      />
     </Dialog>
   )
 }

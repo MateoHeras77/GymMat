@@ -4,10 +4,12 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { lbsToKg } from "@/lib/constants"
 import type { ActiveSet } from "@/stores/activeWorkoutStore"
+import type { PreviousSet } from "@/hooks/usePreviousSets"
 
 interface SetLoggerProps {
   sets: ActiveSet[]
   targetReps: string
+  previousSets?: PreviousSet[]
   onUpdateSet: (setIndex: number, updates: Partial<ActiveSet>) => void
   onCompleteSet: (setIndex: number) => void
   onAddSet: () => void
@@ -27,6 +29,7 @@ const SET_TYPES: { value: ActiveSet["setType"]; label: string; color: string }[]
 export function SetLogger({
   sets,
   targetReps,
+  previousSets = [],
   onUpdateSet,
   onCompleteSet,
   onAddSet,
@@ -76,9 +79,11 @@ export function SetLogger({
               {typeInfo.label}{s.setNumber}
             </button>
 
-            {/* Previous (placeholder for now) */}
+            {/* Previous session data */}
             <span className="text-xs text-muted-foreground">
-              {targetReps} reps
+              {previousSets[i]
+                ? `${previousSets[i].weight ?? 0} × ${previousSets[i].reps ?? 0}`
+                : "--"}
             </span>
 
             {/* Weight */}
@@ -92,7 +97,7 @@ export function SetLogger({
                   })
                 }
                 className="h-8 text-sm pr-1"
-                placeholder="0"
+                placeholder="--"
                 step="2.5"
                 disabled={s.completed}
               />
@@ -113,38 +118,40 @@ export function SetLogger({
                 })
               }
               className="h-8 text-sm"
-              placeholder={targetReps}
+              placeholder="--"
               disabled={s.completed}
             />
 
-            {/* Complete / Delete */}
+            {/* Complete / Undo */}
             {s.completed ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary"
+              <button
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
                 onClick={() => onUpdateSet(i, { completed: false })}
+                title="Undo"
               >
                 <Check className="h-4 w-4" />
-              </Button>
+              </button>
             ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
+              <button
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors",
+                  s.reps
+                    ? "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                    : "border-muted text-muted cursor-not-allowed"
+                )}
                 onClick={() => {
                   if (s.reps != null && s.reps > 0) {
                     onCompleteSet(i)
-                    // Auto-start rest timer
                     if (restSeconds > 0) {
                       onRestTimer(restSeconds)
                     }
                   }
                 }}
                 disabled={!s.reps}
+                title="Complete set"
               >
                 <Check className="h-4 w-4" />
-              </Button>
+              </button>
             )}
           </div>
         )

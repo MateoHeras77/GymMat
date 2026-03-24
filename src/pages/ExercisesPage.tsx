@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useExercises } from "@/hooks/useExercises"
 import { getGifUrl } from "@/types/exercise"
+import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
 
 export function ExercisesPage() {
   const [search, setSearch] = useState("")
@@ -13,6 +14,9 @@ export function ExercisesPage() {
   const [equipment, setEquipment] = useState<string>("all")
   const [target, setTarget] = useState<string>("all")
   const [showFilters, setShowFilters] = useState(false)
+  const [previewGif, setPreviewGif] = useState<{
+    url: string; name: string
+  } | null>(null)
 
   const {
     exercises,
@@ -148,12 +152,19 @@ export function ExercisesPage() {
               <Card key={exercise.id}>
                 <CardContent className="flex items-center gap-3 py-3">
                   {gifUrl ? (
-                    <img
-                      src={gifUrl}
-                      alt={exercise.name}
-                      className="h-14 w-14 rounded-md object-cover"
-                      loading="lazy"
-                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreviewGif({ url: gifUrl, name: exercise.name })
+                      }
+                    >
+                      <img
+                        src={gifUrl}
+                        alt={exercise.name}
+                        className="h-14 w-14 rounded-md object-cover"
+                        loading="lazy"
+                      />
+                    </button>
                   ) : (
                     <div className="flex h-14 w-14 items-center justify-center rounded-md bg-secondary text-muted-foreground">
                       <span className="text-xs text-center leading-tight">
@@ -185,6 +196,14 @@ export function ExercisesPage() {
           )}
         </div>
       )}
+
+      {/* GIF Preview */}
+      <GifPreviewDialog
+        open={!!previewGif}
+        onOpenChange={(open) => !open && setPreviewGif(null)}
+        gifUrl={previewGif?.url ?? ""}
+        exerciseName={previewGif?.name ?? ""}
+      />
     </div>
   )
 }

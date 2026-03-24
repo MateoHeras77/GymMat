@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom"
 import { Header } from "./Header"
 import { BottomNav } from "./BottomNav"
+import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner"
 
 export function AppShell() {
   return (
@@ -9,6 +10,7 @@ export function AppShell() {
       <main className="px-4 pb-24 pt-4">
         <Outlet />
       </main>
+      <ActiveWorkoutBanner />
       <BottomNav />
     </div>
   )

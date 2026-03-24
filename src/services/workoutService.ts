@@ -2,6 +2,72 @@ import { supabase } from "@/lib/supabase"
 import type { WorkoutResult } from "@/stores/activeWorkoutStore"
 import type { WorkoutSession } from "@/types/workout"
 
+// --- Offline-safe workout persistence ---
+
+const PENDING_WORKOUTS_KEY = "gymmat-pending-workouts"
+
+interface PendingWorkout {
+  id: string
+  userId: string
+  result: WorkoutResult
+  rating: number | null
+  queuedAt: string
+}
+
+function getPendingWorkouts(): PendingWorkout[] {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_WORKOUTS_KEY) || "[]")
+  } catch {
+    return []
+  }
+}
+
+function savePendingWorkouts(workouts: PendingWorkout[]) {
+  localStorage.setItem(PENDING_WORKOUTS_KEY, JSON.stringify(workouts))
+}
+
+export async function saveWorkoutWithOfflineSupport(
+  userId: string,
+  result: WorkoutResult,
+  rating: number | null
+): Promise<WorkoutSession | "queued"> {
+  try {
+    return await saveWorkout(userId, result, rating)
+  } catch (error) {
+    if (!navigator.onLine) {
+      const pending = getPendingWorkouts()
+      pending.push({
+        id: crypto.randomUUID(),
+        userId,
+        result,
+        rating,
+        queuedAt: new Date().toISOString(),
+      })
+      savePendingWorkouts(pending)
+      return "queued"
+    }
+    throw error
+  }
+}
+
+export async function processPendingWorkouts() {
+  const pending = getPendingWorkouts()
+  if (pending.length === 0) return
+
+  const remaining: PendingWorkout[] = []
+  for (const w of pending) {
+    try {
+      await saveWorkout(w.userId, w.result, w.rating)
+      console.log(`Synced pending workout from ${w.queuedAt}`)
+    } catch {
+      remaining.push(w)
+    }
+  }
+  savePendingWorkouts(remaining)
+}
+
+// --- Core save logic ---
+
 export async function saveWorkout(
   userId: string,
   result: WorkoutResult,

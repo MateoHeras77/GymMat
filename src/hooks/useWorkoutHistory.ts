@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "./useAuth"
 import type { WorkoutSession, WorkoutSet } from "@/types/workout"
@@ -10,6 +10,7 @@ export type SessionWithSets = WorkoutSession & {
 
 export function useWorkoutHistory() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["workout-history", user?.id],
@@ -27,7 +28,21 @@ export function useWorkoutHistory() {
     enabled: !!user,
   })
 
-  return { sessions, isLoading }
+  const deleteSession = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("workout_sessions")
+        .delete()
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workout-history"] })
+      queryClient.invalidateQueries({ queryKey: ["workout-days"] })
+    },
+  })
+
+  return { sessions, isLoading, deleteSession }
 }
 
 export function useSessionDetail(sessionId: string | undefined) {

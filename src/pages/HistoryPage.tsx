@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react"
 import { format, isSameDay } from "date-fns"
-import { Clock, Dumbbell, ChevronDown, Star, Trophy } from "lucide-react"
+import { Clock, Dumbbell, ChevronDown, Star, Trophy, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { WorkoutCalendar } from "@/components/calendar/WorkoutCalendar"
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import type { WorkoutSession } from "@/types/workout"
 
 export function HistoryPage() {
-  const { sessions, isLoading } = useWorkoutHistory()
+  const { sessions, isLoading, deleteSession } = useWorkoutHistory()
   const workoutDays = useWorkoutDays()
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
@@ -94,6 +94,11 @@ export function HistoryPage() {
                   expandedSession === session.id ? null : session.id
                 )
               }
+              onDelete={() => {
+                if (confirm("Delete this workout session?")) {
+                  deleteSession.mutate(session.id)
+                }
+              }}
             />
           ))}
         </div>
@@ -106,10 +111,12 @@ function SessionCard({
   session,
   isExpanded,
   onToggle,
+  onDelete,
 }: {
   session: WorkoutSession
   isExpanded: boolean
   onToggle: () => void
+  onDelete: () => void
 }) {
   const { session: detail, isLoading } = useSessionDetail(
     isExpanded ? session.id : undefined
@@ -140,13 +147,23 @@ function SessionCard({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {session.rating && (
-              <div className="flex items-center gap-0.5">
+              <div className="flex items-center gap-0.5 mr-1">
                 <Star className="h-3.5 w-3.5 fill-yellow-500 text-yellow-500" />
                 <span className="text-xs">{session.rating}</span>
               </div>
             )}
+            <button
+              className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-destructive/10 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              title="Delete session"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </button>
             <ChevronDown
               className={cn(
                 "h-4 w-4 text-muted-foreground transition-transform",
