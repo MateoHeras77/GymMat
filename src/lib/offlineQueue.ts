@@ -107,9 +107,4 @@ export async function processQueue() {
   }
 }
 
-// Auto-process when coming back online
-if (typeof window !== "undefined") {
-  window.addEventListener("online", () => {
-    processQueue()
-  })
-}
+// Note: online listener is registered in main.tsx to avoid duplicate processing

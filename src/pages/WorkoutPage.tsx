@@ -50,12 +50,6 @@ export function WorkoutPage() {
   const { startTimer } = useTimerStore()
   useWakeLock(isActive)
 
-  // Request notification permission once on first workout
-  useEffect(() => {
-    if (isActive && "Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission()
-    }
-  }, [isActive])
   const [workoutResult, setWorkoutResult] = useState<WorkoutResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [elapsed, setElapsed] = useState(0)

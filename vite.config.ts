@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "icons/*.png"],
+      includeAssets: ["favicon.svg", "icons/*.png"],
       manifest: {
         name: "GymMat",
         short_name: "GymMat",
@@ -32,6 +32,8 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
           },
+          // TODO: Generate a dedicated maskable icon with safe-zone padding (inner 80%).
+          // Using the regular icon as maskable may cause clipping on Android adaptive icons.
           {
             src: "/icons/icon-512.png",
             sizes: "512x512",

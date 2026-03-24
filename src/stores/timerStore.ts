@@ -1,49 +1,13 @@
 import { create } from "zustand"
-
-// ─── Timer sound (Web Audio API) ───
-
-function playTimerSound() {
-  try {
-    const ctx = new AudioContext()
-    const playBeep = (time: number) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.frequency.value = 880
-      osc.type = "sine"
-      gain.gain.setValueAtTime(0.3, time)
-      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15)
-      osc.start(time)
-      osc.stop(time + 0.15)
-    }
-    // Two short beeps
-    playBeep(ctx.currentTime)
-    playBeep(ctx.currentTime + 0.25)
-  } catch {
-    // AudioContext not available — silent fallback
-  }
-}
-
-// ─── Background notification ───
-
-function notifyIfBackground() {
-  if (document.hidden && "Notification" in window && Notification.permission === "granted") {
-    new Notification("Rest Complete!", {
-      body: "Time for your next set",
-      icon: "/icons/icon-192.png",
-      tag: "rest-timer",
-    })
-  }
-}
-
-// ─── Timer store ───
+import { playTimerBeep } from "@/lib/audioManager"
 
 interface TimerState {
   isRunning: boolean
   totalSeconds: number
   remainingSeconds: number
   intervalId: number | null
+  /** Wall-clock timestamp (ms) when the timer should finish */
+  endsAt: number | null
 
   startTimer: (seconds: number) => void
   stopTimer: () => void
@@ -55,6 +19,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
   totalSeconds: 0,
   remainingSeconds: 0,
   intervalId: null,
+  endsAt: null,
 
   startTimer: (seconds: number) => {
     const state = get()
@@ -62,21 +27,30 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       clearInterval(state.intervalId)
     }
 
+    const endsAt = Date.now() + seconds * 1000
+
+    /* iOS PWA workaround: use wall-clock comparison instead of decrementing a counter.
+       iOS Safari throttles setInterval to ~60s+ when the tab is backgrounded or the
+       screen is locked. By comparing against Date.now() on each tick, the timer
+       "catches up" instantly when the user returns to the app. */
     const id = window.setInterval(() => {
       const current = get()
-      if (current.remainingSeconds <= 1) {
+      if (!current.endsAt) return
+
+      const remaining = Math.max(0, Math.ceil((current.endsAt - Date.now()) / 1000))
+
+      if (remaining <= 0) {
         // Timer done
         clearInterval(current.intervalId!)
-        set({ isRunning: false, remainingSeconds: 0, intervalId: null })
+        set({ isRunning: false, remainingSeconds: 0, intervalId: null, endsAt: null })
 
-        // Alert user: vibrate + sound + notification
+        // Alert user: vibrate (Android) + sound (all platforms)
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 200])
         }
-        playTimerSound()
-        notifyIfBackground()
+        playTimerBeep()
       } else {
-        set({ remainingSeconds: current.remainingSeconds - 1 })
+        set({ remainingSeconds: remaining })
       }
     }, 1000)
 
@@ -85,6 +59,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       totalSeconds: seconds,
       remainingSeconds: seconds,
       intervalId: id,
+      endsAt,
     })
   },
 
@@ -93,7 +68,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
     if (state.intervalId) {
       clearInterval(state.intervalId)
     }
-    set({ isRunning: false, intervalId: null })
+    set({ isRunning: false, intervalId: null, endsAt: null })
   },
 
   resetTimer: () => {
@@ -106,6 +81,7 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
       totalSeconds: 0,
       remainingSeconds: 0,
       intervalId: null,
+      endsAt: null,
     })
   },
 }))
