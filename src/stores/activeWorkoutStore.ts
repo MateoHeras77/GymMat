@@ -71,7 +71,7 @@ export interface WorkoutResult {
 }
 
 function generateSetId(): string {
-  return Math.random().toString(36).substring(2, 10)
+  return crypto.randomUUID()
 }
 
 function parseTargetReps(targetReps: string): number | null {

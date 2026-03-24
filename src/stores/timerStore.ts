@@ -1,5 +1,44 @@
 import { create } from "zustand"
 
+// ─── Timer sound (Web Audio API) ───
+
+function playTimerSound() {
+  try {
+    const ctx = new AudioContext()
+    const playBeep = (time: number) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      osc.type = "sine"
+      gain.gain.setValueAtTime(0.3, time)
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15)
+      osc.start(time)
+      osc.stop(time + 0.15)
+    }
+    // Two short beeps
+    playBeep(ctx.currentTime)
+    playBeep(ctx.currentTime + 0.25)
+  } catch {
+    // AudioContext not available — silent fallback
+  }
+}
+
+// ─── Background notification ───
+
+function notifyIfBackground() {
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+    new Notification("Rest Complete!", {
+      body: "Time for your next set",
+      icon: "/icons/icon-192.png",
+      tag: "rest-timer",
+    })
+  }
+}
+
+// ─── Timer store ───
+
 interface TimerState {
   isRunning: boolean
   totalSeconds: number
@@ -30,10 +69,12 @@ export const useTimerStore = create<TimerState>()((set, get) => ({
         clearInterval(current.intervalId!)
         set({ isRunning: false, remainingSeconds: 0, intervalId: null })
 
-        // Vibrate if available
+        // Alert user: vibrate + sound + notification
         if (navigator.vibrate) {
           navigator.vibrate([200, 100, 200, 100, 200])
         }
+        playTimerSound()
+        notifyIfBackground()
       } else {
         set({ remainingSeconds: current.remainingSeconds - 1 })
       }

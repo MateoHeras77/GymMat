@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "./supabase"
+import { toast } from "sonner"
 
 interface QueuedMutation {
   id: string
@@ -32,7 +33,7 @@ export function enqueue(mutation: Omit<QueuedMutation, "id" | "createdAt">) {
   const queue = getQueue()
   queue.push({
     ...mutation,
-    id: Math.random().toString(36).substring(2, 10),
+    id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
   })
   saveQueue(queue)
@@ -100,9 +101,9 @@ export async function processQueue() {
   saveQueue(remaining)
 
   if (remaining.length > 0) {
-    console.log(`[OfflineQueue] ${remaining.length} mutations still pending`)
-  } else {
-    console.log("[OfflineQueue] All mutations processed")
+    toast.warning(`${remaining.length} change${remaining.length > 1 ? "s" : ""} still pending sync`)
+  } else if (queue.length > 0) {
+    toast.success("All offline changes synced")
   }
 }
 

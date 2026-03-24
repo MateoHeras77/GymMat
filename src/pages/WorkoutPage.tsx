@@ -22,6 +22,7 @@ import { RestTimer } from "@/components/workout/RestTimer"
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary"
 import { saveWorkoutWithOfflineSupport } from "@/services/workoutService"
 import { toast } from "sonner"
+import { useWakeLock } from "@/hooks/useWakeLock"
 import { usePreviousSets } from "@/hooks/usePreviousSets"
 import { formatDuration } from "@/lib/constants"
 import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
@@ -47,6 +48,14 @@ export function WorkoutPage() {
   } = useActiveWorkoutStore()
 
   const { startTimer } = useTimerStore()
+  useWakeLock(isActive)
+
+  // Request notification permission once on first workout
+  useEffect(() => {
+    if (isActive && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission()
+    }
+  }, [isActive])
   const [workoutResult, setWorkoutResult] = useState<WorkoutResult | null>(null)
   const [saving, setSaving] = useState(false)
   const [elapsed, setElapsed] = useState(0)

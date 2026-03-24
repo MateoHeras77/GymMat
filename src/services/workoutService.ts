@@ -122,62 +122,83 @@ export async function saveWorkout(
 }
 
 async function checkAndUpdatePRs(userId: string, result: WorkoutResult) {
+  // Collect all exercise IDs from this workout
+  const exerciseIds = result.exercises
+    .filter((ex) => ex.sets.some((s) => s.completed))
+    .map((ex) => ex.exerciseId)
+
+  if (exerciseIds.length === 0) return
+
+  // Batch fetch ALL existing PRs for these exercises in one query
+  const { data: existingPRs } = await supabase
+    .from("personal_records")
+    .select("exercise_id, record_type, value")
+    .eq("user_id", userId)
+    .in("exercise_id", exerciseIds)
+
+  const prMap = new Map<string, number>()
+  for (const pr of (existingPRs ?? []) as { exercise_id: string; record_type: string; value: number }[]) {
+    prMap.set(`${pr.exercise_id}:${pr.record_type}`, pr.value)
+  }
+
+  // Compare and collect upserts
+  const upserts: {
+    user_id: string
+    exercise_id: string
+    record_type: "max_weight" | "max_reps" | "max_volume"
+    value: number
+    achieved_at: string
+  }[] = []
+
+  const now = new Date().toISOString()
+
   for (const exercise of result.exercises) {
     const completedSets = exercise.sets.filter((s) => s.completed)
     if (completedSets.length === 0) continue
 
-    // Max weight for this exercise in this workout
     const maxWeight = Math.max(
       ...completedSets
         .filter((s) => s.weight != null && s.weight > 0)
-        .map((s) => s.weight!)
+        .map((s) => s.weight!),
+      -Infinity
     )
-
-    // Max reps for this exercise in this workout
     const maxReps = Math.max(
       ...completedSets
         .filter((s) => s.reps != null && s.reps > 0)
-        .map((s) => s.reps!)
+        .map((s) => s.reps!),
+      -Infinity
     )
-
-    // Max volume (single set) = reps * weight
     const maxVolume = Math.max(
       ...completedSets
         .filter((s) => s.reps != null && s.weight != null)
-        .map((s) => (s.reps ?? 0) * (s.weight ?? 0))
+        .map((s) => (s.reps ?? 0) * (s.weight ?? 0)),
+      -Infinity
     )
 
-    const prsToCheck = [
+    const candidates = [
       { type: "max_weight" as const, value: maxWeight },
       { type: "max_reps" as const, value: maxReps },
       { type: "max_volume" as const, value: maxVolume },
     ].filter((pr) => pr.value > 0 && isFinite(pr.value))
 
-    for (const pr of prsToCheck) {
-      // Check current record
-      const { data: existingData } = await supabase
-        .from("personal_records")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("exercise_id", exercise.exerciseId)
-        .eq("record_type", pr.type)
-        .single()
-
-      const existing = existingData as { value: number } | null
-
-      if (!existing || pr.value > existing.value) {
-        // New PR!
-        await supabase.from("personal_records").upsert(
-          {
-            user_id: userId,
-            exercise_id: exercise.exerciseId,
-            record_type: pr.type,
-            value: pr.value,
-            achieved_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,exercise_id,record_type" }
-        )
+    for (const pr of candidates) {
+      const existing = prMap.get(`${exercise.exerciseId}:${pr.type}`)
+      if (existing == null || pr.value > existing) {
+        upserts.push({
+          user_id: userId,
+          exercise_id: exercise.exerciseId,
+          record_type: pr.type,
+          value: pr.value,
+          achieved_at: now,
+        })
       }
     }
+  }
+
+  // Batch upsert all new PRs in one query
+  if (upserts.length > 0) {
+    await supabase
+      .from("personal_records")
+      .upsert(upserts, { onConflict: "user_id,exercise_id,record_type" })
   }
 }

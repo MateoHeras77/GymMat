@@ -18,6 +18,7 @@ export function usePersonalRecords() {
         .select("*, exercise:exercises(*)")
         .eq("user_id", user.id)
         .order("achieved_at", { ascending: false })
+        .limit(500)
 
       if (error) throw error
       return data as unknown as PRWithExercise[]
@@ -41,6 +42,7 @@ export function useExerciseHistory(exerciseId: string | undefined) {
         .eq("exercise_id", exerciseId)
         .eq("session.user_id", user.id)
         .order("completed_at", { ascending: true })
+        .limit(500)
 
       if (error) throw error
       return data as unknown as {
@@ -74,6 +76,7 @@ export function useWeeklyVolume() {
         .select("weight, reps, session:workout_sessions!inner(started_at, user_id)")
         .eq("session.user_id", user.id)
         .gte("completed_at", twelveWeeksAgo.toISOString())
+        .limit(2000)
 
       if (error) throw error
       return data as unknown as {
@@ -123,10 +126,12 @@ export function useBodyMeasurements() {
 
   const deleteMeasurement = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated")
       const { error } = await supabase
         .from("body_measurements")
         .delete()
         .eq("id", id)
+        .eq("user_id", user.id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -147,9 +152,8 @@ export function useUserExercises() {
       // Get distinct exercises the user has done
       const { data, error } = await supabase
         .from("workout_sets")
-        .select("exercise_id, exercise:exercises(id, name, body_part, target)")
-        .eq("session.user_id", user.id)
         .select("exercise_id, exercise:exercises(id, name, body_part, target), session:workout_sessions!inner(user_id)")
+        .eq("session.user_id", user.id)
 
       if (error) throw error
 
