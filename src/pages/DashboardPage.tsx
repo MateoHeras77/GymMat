@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { startOfWeek, isAfter, subDays, startOfDay, isSameDay } from "date-fns"
+import { startOfWeek, isAfter, subDays, startOfDay } from "date-fns"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

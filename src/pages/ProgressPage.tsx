@@ -244,8 +244,8 @@ function VolumeTab() {
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                formatter={(value: number) => [
-                  `${value.toLocaleString()} lbs`,
+                formatter={(value) => [
+                  `${Number(value).toLocaleString()} lbs`,
                   "Volume",
                 ]}
               />
@@ -433,7 +433,7 @@ function BodyTab() {
                     borderRadius: 8,
                     fontSize: 12,
                   }}
-                  formatter={(value: number) => [`${value} lbs`, "Weight"]}
+                  formatter={(value) => [`${value} lbs`, "Weight"]}
                 />
                 <Line
                   type="monotone"

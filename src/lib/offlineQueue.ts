@@ -45,12 +45,14 @@ export function getQueueLength(): number {
 async function processMutation(m: QueuedMutation): Promise<boolean> {
   try {
     let query
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const table = supabase.from(m.table) as any
     switch (m.type) {
       case "insert":
-        query = supabase.from(m.table).insert(m.data!)
+        query = table.insert(m.data!)
         break
       case "update":
-        query = supabase.from(m.table).update(m.data!)
+        query = table.update(m.data!)
         if (m.match) {
           for (const [key, value] of Object.entries(m.match)) {
             query = query.eq(key, value as string)
@@ -58,7 +60,7 @@ async function processMutation(m: QueuedMutation): Promise<boolean> {
         }
         break
       case "upsert":
-        query = supabase.from(m.table).upsert(m.data!)
+        query = table.upsert(m.data!)
         break
       case "delete":
         query = supabase.from(m.table).delete()

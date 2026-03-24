@@ -28,7 +28,6 @@ const SET_TYPES: { value: ActiveSet["setType"]; label: string; color: string }[]
 
 export function SetLogger({
   sets,
-  targetReps,
   previousSets = [],
   onUpdateSet,
   onCompleteSet,
