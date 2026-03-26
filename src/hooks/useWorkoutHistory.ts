@@ -48,16 +48,19 @@ export function useWorkoutHistory() {
 }
 
 export function useSessionDetail(sessionId: string | undefined) {
+  const { user } = useAuth()
+
   const { data: session, isLoading } = useQuery({
-    queryKey: ["session-detail", sessionId],
+    queryKey: ["session-detail", sessionId, user?.id],
     queryFn: async () => {
-      if (!sessionId) return null
+      if (!sessionId || !user) return null
 
       const [sessionRes, setsRes] = await Promise.all([
         supabase
           .from("workout_sessions")
           .select("*")
           .eq("id", sessionId)
+          .eq("user_id", user.id)
           .single(),
         supabase
           .from("workout_sets")
@@ -75,7 +78,7 @@ export function useSessionDetail(sessionId: string | undefined) {
         sets: setsRes.data as unknown as (WorkoutSet & { exercise: Exercise })[],
       } as SessionWithSets
     },
-    enabled: !!sessionId,
+    enabled: !!sessionId && !!user,
   })
 
   return { session, isLoading }

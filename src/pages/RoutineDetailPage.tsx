@@ -20,6 +20,7 @@ import {
   type RoutineExerciseWithDetails,
 } from "@/hooks/useRoutineExercises"
 import { useRoutines } from "@/hooks/useRoutines"
+import { useAuth } from "@/hooks/useAuth"
 import { ExercisePicker } from "@/components/exercises/ExercisePicker"
 import { ExerciseConfigSheet } from "@/components/routines/ExerciseConfigSheet"
 import { downloadExerciseGif } from "@/services/gifService"
@@ -42,20 +43,22 @@ export function RoutineDetailPage() {
     url: string; name: string
   } | null>(null)
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   const { data: routine, isLoading: routineLoading } = useQuery({
-    queryKey: ["routine", id],
+    queryKey: ["routine", id, user?.id],
     queryFn: async () => {
-      if (!id) return null
+      if (!id || !user) return null
       const { data, error } = await supabase
         .from("routines")
         .select("*")
         .eq("id", id)
+        .eq("user_id", user.id)
         .single()
       if (error) throw error
       return data as Routine
     },
-    enabled: !!id,
+    enabled: !!id && !!user,
   })
 
   const {
