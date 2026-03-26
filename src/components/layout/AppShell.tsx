@@ -6,34 +6,47 @@ import { ActiveWorkoutBanner } from "./ActiveWorkoutBanner"
 import { unlockAudio } from "@/lib/audioManager"
 import { useInstallPrompt } from "@/hooks/usePWA"
 import { Button } from "@/components/ui/button"
-import { Download, X } from "lucide-react"
+import { Download, X, Share } from "lucide-react"
 
 const DISMISS_KEY = "gymmat-install-dismissed"
 
 function InstallBanner() {
-  const { canInstall, install } = useInstallPrompt()
+  const { canInstall, showIOSInstall, install } = useInstallPrompt()
   const [dismissed, setDismissed] = useState(() =>
     localStorage.getItem(DISMISS_KEY) === "1"
   )
 
-  if (!canInstall || dismissed) return null
+  if (dismissed || (!canInstall && !showIOSInstall)) return null
+
+  const dismiss = () => {
+    setDismissed(true)
+    localStorage.setItem(DISMISS_KEY, "1")
+  }
 
   return (
     <div className="fixed inset-x-0 bottom-16 z-40 mx-auto flex max-w-lg items-center gap-2 px-4 pb-1">
       <div className="flex flex-1 items-center gap-3 rounded-xl bg-card px-3 py-2.5 ring-1 ring-foreground/10">
-        <Download className="h-4 w-4 shrink-0 text-primary" />
-        <p className="flex-1 text-xs">
-          Install GymMat for the best experience
-        </p>
-        <Button size="xs" onClick={install}>
-          Install
-        </Button>
+        {canInstall ? (
+          <>
+            <Download className="h-4 w-4 shrink-0 text-primary" />
+            <p className="flex-1 text-xs">
+              Install GymMat for the best experience
+            </p>
+            <Button size="xs" onClick={install}>
+              Install
+            </Button>
+          </>
+        ) : (
+          <>
+            <Share className="h-4 w-4 shrink-0 text-primary" />
+            <p className="flex-1 text-xs">
+              Tap <Share className="inline h-3 w-3 -mt-0.5" /> then <span className="font-medium">"Add to Home Screen"</span>
+            </p>
+          </>
+        )}
         <button
           className="p-1 text-muted-foreground"
-          onClick={() => {
-            setDismissed(true)
-            localStorage.setItem(DISMISS_KEY, "1")
-          }}
+          onClick={dismiss}
         >
           <X className="h-3.5 w-3.5" />
         </button>
