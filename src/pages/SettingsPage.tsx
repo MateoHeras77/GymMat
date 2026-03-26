@@ -1,17 +1,45 @@
+import { useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { usePreferences } from "@/hooks/usePreferences"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { LogOut, Sun, Moon, Monitor, Download, Check } from "lucide-react"
+import { LogOut, Sun, Moon, Monitor, Download, Check, Send } from "lucide-react"
 import { useInstallPrompt } from "@/hooks/usePWA"
+import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
 
 export function SettingsPage() {
   const { user, signOut } = useAuth()
   const { preferences, updatePreferences } = usePreferences()
   const { canInstall, isInstalled, install } = useInstallPrompt()
+
+  // Feedback form state
+  const [feedbackType, setFeedbackType] = useState<"bug" | "feature" | "other">("bug")
+  const [feedbackMessage, setFeedbackMessage] = useState("")
+  const [sendingFeedback, setSendingFeedback] = useState(false)
+
+  const handleSendFeedback = async () => {
+    if (!feedbackMessage.trim() || !user) return
+    setSendingFeedback(true)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase.from as any)("feedback").insert({
+      user_id: user.id,
+      type: feedbackType,
+      message: feedbackMessage.trim(),
+    })
+    setSendingFeedback(false)
+    if (error) {
+      toast.error("Failed to send feedback")
+    } else {
+      toast.success("Feedback sent!")
+      setFeedbackMessage("")
+    }
+  }
 
   const themeOptions = [
     { value: "light" as const, label: "Light", icon: Sun },
@@ -22,6 +50,12 @@ export function SettingsPage() {
   const unitOptions = [
     { value: "lbs" as const, label: "lbs" },
     { value: "kg" as const, label: "kg" },
+  ]
+
+  const feedbackTypes = [
+    { value: "bug" as const, label: "Bug" },
+    { value: "feature" as const, label: "Feature" },
+    { value: "other" as const, label: "Other" },
   ]
 
   return (
@@ -120,6 +154,43 @@ export function SettingsPage() {
               className="w-32"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Feedback */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Feedback</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-1.5">
+            {feedbackTypes.map((t) => (
+              <Badge
+                key={t.value}
+                variant={feedbackType === t.value ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setFeedbackType(t.value)}
+                render={<button type="button" />}
+              >
+                {t.label}
+              </Badge>
+            ))}
+          </div>
+          <Textarea
+            placeholder="Describe the bug or your idea..."
+            value={feedbackMessage}
+            onChange={(e) => setFeedbackMessage(e.target.value)}
+            rows={3}
+          />
+          <Button
+            className="w-full"
+            size="sm"
+            onClick={handleSendFeedback}
+            disabled={!feedbackMessage.trim() || sendingFeedback}
+          >
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            {sendingFeedback ? "Sending..." : "Send Feedback"}
+          </Button>
         </CardContent>
       </Card>
 
