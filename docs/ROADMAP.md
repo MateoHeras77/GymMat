@@ -43,8 +43,11 @@ Objetivo: que un entrenamiento terminado **nunca** se pierda, aun con señal mal
 ### Verificación y deploy
 - [x] **1.13** Añadir Vitest + tests del flujo de guardado (éxito, fallo online, offline, reintento sin duplicar).
 - [ ] **1.14** Prueba manual en iPhone: terminar entreno en modo avión → reabrir app → se sincroniza.
-- [ ] **1.15** Commit + deploy a Vercel; probar descarga de GIF end-to-end en producción.
-- [ ] **1.16** Borrar `VITE_EXERCISEDB_API_KEY*` de las variables de Vercel (ya no se usan).
+      ⏳ Pendiente de Mateo (ver pasos en el chat del 2026-09-27).
+- [x] **1.15** Commit + deploy a Vercel; probar descarga de GIF end-to-end en producción.
+      ✅ `9700e7c` en producción. E2E con usuario temporal (luego borrado): RPC + reintento sin duplicar,
+      PRs con `workout_set_id`, GIF `3666` descargado vía Edge Function en 1.8 s.
+- [x] **1.16** Borrar `VITE_EXERCISEDB_API_KEY*` de las variables de Vercel (ya no se usan).
 
 ---
 
