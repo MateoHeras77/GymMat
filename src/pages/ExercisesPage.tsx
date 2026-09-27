@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { useExercises } from "@/hooks/useExercises"
 import { getGifUrl } from "@/types/exercise"
 import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
+import { QueryError } from "@/components/QueryError"
 
 export function ExercisesPage() {
   const [search, setSearch] = useState("")
@@ -21,6 +22,8 @@ export function ExercisesPage() {
   const {
     exercises,
     isLoading,
+    isError,
+    refetch,
     bodyParts,
     equipmentList,
     targets,
@@ -130,7 +133,9 @@ export function ExercisesPage() {
         </Card>
       )}
 
-      {isLoading ? (
+      {isError ? (
+        <QueryError onRetry={() => refetch()} />
+      ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map((i) => (
             <Card key={i} className="animate-pulse">

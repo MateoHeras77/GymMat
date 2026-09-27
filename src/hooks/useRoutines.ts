@@ -7,7 +7,12 @@ export function useRoutines() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  const { data: routines = [], isLoading } = useQuery({
+  const {
+    data: routines = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["routines", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -46,10 +51,12 @@ export function useRoutines() {
       id,
       ...updates
     }: { id: string } & Partial<RoutineInsert>) => {
+      if (!user) throw new Error("Not authenticated")
       const { data, error } = await supabase
         .from("routines")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
+        .eq("user_id", user.id) // defense-in-depth alongside RLS
         .select()
         .single()
 
@@ -63,10 +70,12 @@ export function useRoutines() {
 
   const deleteRoutine = useMutation({
     mutationFn: async (id: string) => {
+      if (!user) throw new Error("Not authenticated")
       const { error } = await supabase
         .from("routines")
         .update({ is_archived: true, updated_at: new Date().toISOString() })
         .eq("id", id)
+        .eq("user_id", user.id) // defense-in-depth alongside RLS
 
       if (error) throw error
     },
@@ -78,6 +87,8 @@ export function useRoutines() {
   return {
     routines,
     isLoading,
+    isError,
+    refetch,
     createRoutine,
     updateRoutine,
     deleteRoutine,

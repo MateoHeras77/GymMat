@@ -9,41 +9,40 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
+      pwaAssets: { config: true, overrideManifestIcons: true },
       includeAssets: ["favicon.svg", "icons/*.png", "sounds/notification.wav"],
       manifest: {
+        id: "/?source=pwa",
         name: "GymMat",
         short_name: "GymMat",
         description: "Your personal gym workout tracker",
+        categories: ["health", "fitness", "sports"],
         theme_color: "#09090b",
         background_color: "#09090b",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
         start_url: "/",
-        icons: [
+        shortcuts: [
           {
-            src: "/icons/icon-192.png",
-            sizes: "192x192",
-            type: "image/png",
+            name: "Start Workout",
+            short_name: "Workout",
+            url: "/workout",
+            icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
           },
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-          },
-          // TODO: Generate a dedicated maskable icon with safe-zone padding (inner 80%).
-          // Using the regular icon as maskable may cause clipping on Android adaptive icons.
-          {
-            src: "/icons/icon-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
+          { name: "History", url: "/history" },
+          { name: "Progress", url: "/progress" },
         ],
+        // Manifest icons (incl. maskable with safe-zone) are generated and
+        // injected by the PWA assets generator (pwa-assets.config.ts) via
+        // `pwaAssets.overrideManifestIcons`.
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // iOS splash screens are loaded directly via <link> on launch; no need
+        // to bloat the precache (~6MB) with them.
+        globIgnores: ["**/apple-splash-*.png"],
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [

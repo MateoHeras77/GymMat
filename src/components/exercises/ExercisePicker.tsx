@@ -173,6 +173,7 @@ export function ExercisePicker({
                     <button
                       type="button"
                       className="shrink-0"
+                      aria-label={`View demonstration for ${exercise.name}`}
                       onClick={(e) => {
                         e.stopPropagation()
                         setPreviewGif({ url: gifUrl, name: exercise.name })

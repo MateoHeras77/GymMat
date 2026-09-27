@@ -20,4 +20,14 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/ui primitives co-export their `cva` variants, and router.tsx
+    // co-exports the route tree alongside local fallback components. These are
+    // intentional non-component exports; disabling the fast-refresh-only rule
+    // here avoids churning every import site.
+    files: ['src/components/ui/**/*.{ts,tsx}', 'src/router.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

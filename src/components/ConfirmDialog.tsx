@@ -1,0 +1,94 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+
+interface ConfirmOptions {
+  title: string
+  description?: string
+  confirmLabel?: string
+  cancelLabel?: string
+  destructive?: boolean
+}
+
+type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>
+
+const ConfirmContext = createContext<ConfirmFn | null>(null)
+
+/**
+ * Promise-based confirmation dialog. Wrap the app once with <ConfirmProvider>
+ * and call `const confirm = useConfirm()` → `if (await confirm({...})) {...}`,
+ * replacing the native window.confirm() with a themed, on-brand dialog.
+ */
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const [opts, setOpts] = useState<ConfirmOptions | null>(null)
+  const resolver = useRef<((value: boolean) => void) | null>(null)
+
+  const confirm = useCallback<ConfirmFn>((options) => {
+    setOpts(options)
+    setOpen(true)
+    return new Promise<boolean>((resolve) => {
+      resolver.current = resolve
+    })
+  }, [])
+
+  const settle = useCallback((result: boolean) => {
+    setOpen(false)
+    resolver.current?.(result)
+    resolver.current = null
+  }, [])
+
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Closing via backdrop/escape counts as cancel.
+          if (!next) settle(false)
+        }}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{opts?.title}</DialogTitle>
+            {opts?.description && (
+              <DialogDescription>{opts.description}</DialogDescription>
+            )}
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => settle(false)}>
+              {opts?.cancelLabel ?? "Cancel"}
+            </Button>
+            <Button
+              variant={opts?.destructive ? "destructive" : "default"}
+              onClick={() => settle(true)}
+            >
+              {opts?.confirmLabel ?? "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </ConfirmContext.Provider>
+  )
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- provider + its hook are intentionally colocated
+export function useConfirm() {
+  const ctx = useContext(ConfirmContext)
+  if (!ctx) throw new Error("useConfirm must be used within a ConfirmProvider")
+  return ctx
+}

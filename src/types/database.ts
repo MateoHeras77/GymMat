@@ -281,7 +281,15 @@ export type Database = {
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      save_workout: {
+        Args: {
+          p_session: Record<string, unknown>
+          p_sets: Record<string, unknown>[]
+        }
+        Returns: Database["public"]["Tables"]["workout_sessions"]["Row"]
+      }
+    }
     Enums: Record<string, never>
   }
 }

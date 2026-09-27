@@ -9,6 +9,7 @@ import { Dumbbell, Flame, TrendingUp, Play, Clock, Trophy } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/useAuth"
 import { formatDuration } from "@/lib/constants"
+import { QueryError } from "@/components/QueryError"
 import type { WorkoutSession } from "@/types/workout"
 
 export function DashboardPage() {
@@ -16,7 +17,11 @@ export function DashboardPage() {
   const { user } = useAuth()
 
   // Fetch all sessions
-  const { data: sessions = [] } = useQuery({
+  const {
+    data: sessions = [],
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["workout-history", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -142,7 +147,9 @@ export function DashboardPage() {
           <CardTitle className="text-base">Recent Workouts</CardTitle>
         </CardHeader>
         <CardContent>
-          {recentSessions.length === 0 ? (
+          {isError ? (
+            <QueryError onRetry={() => refetch()} />
+          ) : recentSessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No workouts yet. Start your first workout!
             </p>

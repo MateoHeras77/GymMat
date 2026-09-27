@@ -32,6 +32,9 @@ import {
   useUserExercises,
 } from "@/hooks/useProgress"
 import { formatWeight } from "@/lib/constants"
+import { toast } from "sonner"
+import { useConfirm } from "@/components/ConfirmDialog"
+import { QueryError } from "@/components/QueryError"
 
 // ─── Shared chart config ───
 
@@ -107,7 +110,7 @@ function StrengthTab() {
 
   const exerciseId = selectedExercise ?? exercises[0]?.id
 
-  const { sets, isLoading } = useExerciseHistory(exerciseId)
+  const { sets, isLoading, isError, refetch } = useExerciseHistory(exerciseId)
 
   const chartData = useMemo(() => {
     if (!sets.length) return []
@@ -199,7 +202,9 @@ function StrengthTab() {
       {/* Chart */}
       <Card>
         <CardContent className="pt-4">
-          {isLoading ? (
+          {isError ? (
+            <QueryError onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="h-[220px] animate-pulse rounded bg-secondary" />
           ) : chartData.length < 2 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
@@ -241,7 +246,7 @@ function StrengthTab() {
 // ─── Volume Tab ───
 
 function VolumeTab() {
-  const { weeklyData, isLoading } = useWeeklyVolume()
+  const { weeklyData, isLoading, isError, refetch } = useWeeklyVolume()
 
   const chartData = useMemo(() => {
     if (!weeklyData.length) return []
@@ -300,7 +305,9 @@ function VolumeTab() {
       {/* Chart */}
       <Card>
         <CardContent className="pt-4">
-          {isLoading ? (
+          {isError ? (
+            <QueryError onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="h-[220px] animate-pulse rounded bg-secondary" />
           ) : chartData.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
@@ -337,7 +344,7 @@ function VolumeTab() {
 // ─── PRs Tab ───
 
 function PRsTab() {
-  const { records, isLoading } = usePersonalRecords()
+  const { records, isLoading, isError, refetch } = usePersonalRecords()
 
   const grouped = useMemo(() => {
     const map = new Map<
@@ -359,6 +366,10 @@ function PRsTab() {
   }, [records])
 
   const totalPRs = records.length
+
+  if (isError) {
+    return <QueryError onRetry={() => refetch()} />
+  }
 
   if (isLoading) {
     return (
@@ -452,8 +463,15 @@ function PRsTab() {
 // ─── Body Tab ───
 
 function BodyTab() {
-  const { measurements, isLoading, addMeasurement, deleteMeasurement } =
-    useBodyMeasurements()
+  const {
+    measurements,
+    isLoading,
+    isError,
+    refetch,
+    addMeasurement,
+    deleteMeasurement,
+  } = useBodyMeasurements()
+  const confirm = useConfirm()
   const [showForm, setShowForm] = useState(false)
   const [measurementLimit, setMeasurementLimit] = useState(5)
 
@@ -481,7 +499,9 @@ function BodyTab() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isError ? (
+            <QueryError onRetry={() => refetch()} />
+          ) : isLoading ? (
             <div className="h-[220px] animate-pulse rounded bg-secondary" />
           ) : chartData.length < 2 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
@@ -558,9 +578,17 @@ function BodyTab() {
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => {
-                    if (confirm("Delete this measurement?")) {
-                      deleteMeasurement.mutate(m.id)
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Delete measurement?",
+                        confirmLabel: "Delete",
+                        destructive: true,
+                      })
+                    ) {
+                      deleteMeasurement.mutate(m.id, {
+                        onSuccess: () => toast.success("Measurement deleted"),
+                      })
                     }
                   }}
                 >

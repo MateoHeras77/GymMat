@@ -12,7 +12,12 @@ export function useWorkoutHistory() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  const { data: sessions = [], isLoading } = useQuery({
+  const {
+    data: sessions = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["workout-history", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -44,7 +49,7 @@ export function useWorkoutHistory() {
     },
   })
 
-  return { sessions, isLoading, deleteSession }
+  return { sessions, isLoading, isError, refetch, deleteSession }
 }
 
 export function useSessionDetail(sessionId: string | undefined) {

@@ -1,13 +1,17 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Plus, Pencil, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRoutines } from "@/hooks/useRoutines"
+import { useConfirm } from "@/components/ConfirmDialog"
+import { QueryError } from "@/components/QueryError"
 
 export function RoutinesPage() {
   const navigate = useNavigate()
-  const { routines, isLoading, deleteRoutine } = useRoutines()
+  const { routines, isLoading, isError, refetch, deleteRoutine } = useRoutines()
+  const confirm = useConfirm()
   const [visibleCount, setVisibleCount] = useState(10)
 
   return (
@@ -25,7 +29,9 @@ export function RoutinesPage() {
         </Button>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <QueryError onRetry={() => refetch()} />
+      ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -68,10 +74,19 @@ export function RoutinesPage() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation()
-                        if (confirm("Delete this routine?")) {
-                          deleteRoutine.mutate(routine.id)
+                        if (
+                          await confirm({
+                            title: "Delete routine?",
+                            description: `"${routine.name}" will be removed.`,
+                            confirmLabel: "Delete",
+                            destructive: true,
+                          })
+                        ) {
+                          deleteRoutine.mutate(routine.id, {
+                            onSuccess: () => toast.success("Routine deleted"),
+                          })
                         }
                       }}
                       title="Delete"

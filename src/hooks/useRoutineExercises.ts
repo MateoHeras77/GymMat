@@ -56,6 +56,9 @@ export function useRoutineExercises(routineId: string | undefined) {
     },
   })
 
+  // Note: `routine_exercises` has no `user_id` column; ownership is enforced by
+  // RLS through its `routine_id` → `routines.user_id` relationship, so the
+  // mutations below filter by row id only.
   const updateExercise = useMutation({
     mutationFn: async ({
       id,
@@ -77,10 +80,13 @@ export function useRoutineExercises(routineId: string | undefined) {
 
   const removeExercise = useMutation({
     mutationFn: async (id: string) => {
+      if (!routineId) throw new Error("No routine selected")
+      // Scoped to the routine as defense-in-depth alongside RLS.
       const { error } = await supabase
         .from("routine_exercises")
         .delete()
         .eq("id", id)
+        .eq("routine_id", routineId)
 
       if (error) throw error
     },

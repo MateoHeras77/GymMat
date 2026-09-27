@@ -34,6 +34,11 @@ interface ActiveWorkoutState {
   // Exercises and sets
   exercises: ActiveExercise[]
 
+  // A finished workout that hasn't been handed to the save queue yet (the user
+  // is still on the summary screen). Persisted so an iOS app kill or reload on
+  // the summary screen never loses the workout.
+  pendingResult: WorkoutResult | null
+
   // Actions
   startWorkout: (
     routineId: string | null,
@@ -55,10 +60,13 @@ interface ActiveWorkoutState {
     type: ActiveSet["setType"]
   ) => void
   finishWorkout: () => WorkoutResult | null
+  clearPendingResult: () => void
   cancelWorkout: () => void
 }
 
 export interface WorkoutResult {
+  /** Client-generated workout_sessions.id — makes save retries idempotent. */
+  sessionId: string
   routineId: string | null
   routineName: string
   startedAt: string
@@ -105,6 +113,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       startedAt: null,
       currentExerciseIndex: 0,
       exercises: [],
+      pendingResult: null,
 
       startWorkout: (routineId, routineName, exercises) => {
         const withSets = exercises.map((ex) => ({
@@ -202,6 +211,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         )
 
         const result: WorkoutResult = {
+          sessionId: crypto.randomUUID(),
           routineId: state.routineId,
           routineName: state.routineName,
           startedAt: state.startedAt,
@@ -216,7 +226,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           ),
         }
 
-        // Reset store
+        // Swap the active workout for the pending result in a single persisted
+        // write, so there is no moment where the workout exists nowhere.
         set({
           isActive: false,
           routineId: null,
@@ -224,9 +235,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           startedAt: null,
           currentExerciseIndex: 0,
           exercises: [],
+          pendingResult: result,
         })
 
         return result
+      },
+
+      clearPendingResult: () => {
+        set({ pendingResult: null })
       },
 
       cancelWorkout: () => {

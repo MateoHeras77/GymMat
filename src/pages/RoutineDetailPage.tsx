@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { ExercisePicker } from "@/components/exercises/ExercisePicker"
 import { ExerciseConfigSheet } from "@/components/routines/ExerciseConfigSheet"
 import { downloadExerciseGif } from "@/services/gifService"
+import { useConfirm } from "@/components/ConfirmDialog"
 import { useActiveWorkoutStore, type ActiveExercise } from "@/stores/activeWorkoutStore"
 import { getGifUrl } from "@/types/exercise"
 import type { Routine } from "@/types/routine"
@@ -38,7 +39,9 @@ export function RoutineDetailPage() {
   const [configExercise, setConfigExercise] =
     useState<RoutineExerciseWithDetails | null>(null)
   const [configOpen, setConfigOpen] = useState(false)
-  const [downloadingGif, setDownloadingGif] = useState<string | null>(null)
+  const [downloadingGifs, setDownloadingGifs] = useState<Set<string>>(
+    () => new Set()
+  )
   const [previewGif, setPreviewGif] = useState<{
     url: string; name: string
   } | null>(null)
@@ -72,12 +75,22 @@ export function RoutineDetailPage() {
 
   const { deleteRoutine } = useRoutines()
   const { isActive, cancelWorkout, startWorkout } = useActiveWorkoutStore()
+  const confirm = useConfirm()
 
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     if (!routine) return
 
     if (isActive) {
-      if (!confirm("You have an active workout in progress. Start a new one? Current progress will be lost.")) {
+      if (
+        !(await confirm({
+          title: "Start a new workout?",
+          description:
+            "You have an active workout in progress. Starting a new one will discard its progress.",
+          confirmLabel: "Start new",
+          cancelLabel: "Keep current",
+          destructive: true,
+        }))
+      ) {
         return
       }
       cancelWorkout()
@@ -104,31 +117,52 @@ export function RoutineDetailPage() {
   ) => {
     if (!id) return
 
-    // Remove exercises
-    for (const exerciseId of toRemove) {
-      const re = routineExercises.find((r) => r.exercise_id === exerciseId)
-      if (re) {
-        removeExercise.mutate(re.id)
-      }
-    }
+    // Remove exercises (await all so they finish before the adds reorder)
+    await Promise.all(
+      toRemove
+        .map((exerciseId) =>
+          routineExercises.find((r) => r.exercise_id === exerciseId)
+        )
+        .filter((re): re is NonNullable<typeof re> => Boolean(re))
+        .map((re) => removeExercise.mutateAsync(re.id))
+    )
 
-    // Add exercises
+    // Add exercises sequentially so sort_order stays consistent (each insert
+    // derives its order from the current count).
     for (const exercise of toAdd) {
       await addExercise.mutateAsync({
         exercise_id: exercise.id,
       })
+    }
 
-      // Download GIF in background if not already downloaded
-      if (!exercise.gif_url_180 && !exercise.gif_url_hd) {
-        setDownloadingGif(exercise.id)
-        const url = await downloadExerciseGif(exercise.id)
-        setDownloadingGif(null)
-        if (url) {
-          queryClient.invalidateQueries({ queryKey: ["routine-exercises", id] })
-        } else {
-          toast.error(`Could not download GIF for ${exercise.name}`)
-        }
-      }
+    // Download missing GIFs in the background — these are slow (network +
+    // RapidAPI quota) and must not block closing the sheet. Run them in
+    // parallel and refresh once each completes.
+    const missingGifs = toAdd.filter(
+      (ex) => !ex.gif_url_180 && !ex.gif_url_hd
+    )
+    if (missingGifs.length > 0) {
+      void Promise.all(
+        missingGifs.map(async (exercise) => {
+          setDownloadingGifs((prev) => new Set(prev).add(exercise.id))
+          try {
+            const url = await downloadExerciseGif(exercise.id)
+            if (url) {
+              queryClient.invalidateQueries({
+                queryKey: ["routine-exercises", id],
+              })
+            } else {
+              toast.error(`Could not download GIF for ${exercise.name}`)
+            }
+          } finally {
+            setDownloadingGifs((prev) => {
+              const next = new Set(prev)
+              next.delete(exercise.id)
+              return next
+            })
+          }
+        })
+      )
     }
   }
 
@@ -143,7 +177,10 @@ export function RoutineDetailPage() {
       superset_group: number | null
     }
   ) => {
-    updateExercise.mutate({ id: exerciseId, ...updates })
+    updateExercise.mutate(
+      { id: exerciseId, ...updates },
+      { onSuccess: () => toast.success("Exercise updated") }
+    )
   }
 
   const handleMove = (index: number, direction: "up" | "down") => {
@@ -159,8 +196,17 @@ export function RoutineDetailPage() {
 
   const handleDelete = async () => {
     if (!id) return
-    if (!confirm("Archive this routine?")) return
+    if (
+      !(await confirm({
+        title: "Archive routine?",
+        description: "It will be hidden from your routines list.",
+        confirmLabel: "Archive",
+        destructive: true,
+      }))
+    )
+      return
     await deleteRoutine.mutateAsync(id)
+    toast.success("Routine archived")
     navigate("/routines")
   }
 
@@ -280,7 +326,7 @@ export function RoutineDetailPage() {
               {group.exercises.map((re) => {
                 const globalIndex = routineExercises.indexOf(re)
                 const gifUrl = getGifUrl(re.exercise)
-                const isDownloading = downloadingGif === re.exercise.id
+                const isDownloading = downloadingGifs.has(re.exercise.id)
 
                 return (
                   <Card key={re.id}>
@@ -364,9 +410,18 @@ export function RoutineDetailPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => {
-                          if (confirm("Remove this exercise?")) {
-                            removeExercise.mutate(re.id)
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Remove exercise?",
+                              description: `Remove ${re.exercise.name} from this routine?`,
+                              confirmLabel: "Remove",
+                              destructive: true,
+                            })
+                          ) {
+                            removeExercise.mutate(re.id, {
+                              onSuccess: () => toast.success("Exercise removed"),
+                            })
                           }
                         }}
                       >

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -41,20 +41,21 @@ export function ExerciseConfigSheet({
   const [notes, setNotes] = useState("")
   const [supersetGroup, setSupersetGroup] = useState("")
 
-  useEffect(() => {
-    if (exercise) {
-      setSets(String(exercise.target_sets))
-      setReps(exercise.target_reps)
-      setWeight(exercise.target_weight ? String(exercise.target_weight) : "")
-      setRest(String(exercise.rest_seconds))
-      setNotes(exercise.notes ?? "")
-      setSupersetGroup(
-        exercise.superset_group !== null
-          ? String(exercise.superset_group)
-          : ""
-      )
-    }
-  }, [exercise])
+  // Sync the form to the selected exercise during render (the React-recommended
+  // alternative to resetting state from an effect) so a newly opened exercise
+  // shows its own values without an extra render pass.
+  const [prevExerciseId, setPrevExerciseId] = useState<string | null>(null)
+  if (exercise && exercise.id !== prevExerciseId) {
+    setPrevExerciseId(exercise.id)
+    setSets(String(exercise.target_sets))
+    setReps(exercise.target_reps)
+    setWeight(exercise.target_weight ? String(exercise.target_weight) : "")
+    setRest(String(exercise.rest_seconds))
+    setNotes(exercise.notes ?? "")
+    setSupersetGroup(
+      exercise.superset_group !== null ? String(exercise.superset_group) : ""
+    )
+  }
 
   if (!exercise) return null
 

@@ -26,34 +26,31 @@ function isStandalone(): boolean {
 export function useInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null)
-  const [isInstalled, setIsInstalled] = useState(false)
-  const [isIOS, setIsIOS] = useState(false)
+  // Derive the initial values synchronously instead of setting state in an
+  // effect (which would trigger an extra render and trip set-state-in-effect).
+  const [isInstalled, setIsInstalled] = useState(() => isStandalone())
+  const [isIOS] = useState(() => !isStandalone() && isIOSSafari())
 
   useEffect(() => {
-    if (isStandalone()) {
-      setIsInstalled(true)
-      return
-    }
-
-    // iOS Safari detection
-    if (isIOSSafari()) {
-      setIsIOS(true)
-    }
+    if (isStandalone()) return
 
     // Chrome/Android install prompt
     const handler = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
     }
-
-    window.addEventListener("beforeinstallprompt", handler)
-
-    window.addEventListener("appinstalled", () => {
+    const installedHandler = () => {
       setIsInstalled(true)
       setDeferredPrompt(null)
-    })
+    }
 
-    return () => window.removeEventListener("beforeinstallprompt", handler)
+    window.addEventListener("beforeinstallprompt", handler)
+    window.addEventListener("appinstalled", installedHandler)
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler)
+      window.removeEventListener("appinstalled", installedHandler)
+    }
   }, [])
 
   const install = async () => {

@@ -1,12 +1,21 @@
 import { supabase } from "@/lib/supabase"
+import { queryClient } from "@/lib/queryClient"
+import { toast } from "sonner"
 import type { WorkoutResult } from "@/stores/activeWorkoutStore"
 import type { WorkoutSession } from "@/types/workout"
 
-// --- Offline-safe workout persistence ---
+// --- Durable save queue ---
+//
+// Every finished workout is written to localStorage FIRST, then synced to
+// Supabase. It only leaves the queue once the server confirms the save, so a
+// dead connection, a hung request or iOS killing the app can't lose it.
+// Retries are safe: the session id is generated on the client and the
+// `save_workout` RPC is idempotent on it.
 
 const PENDING_WORKOUTS_KEY = "gymmat-pending-workouts"
+const PENDING_CHANGED_EVENT = "gymmat-pending-changed"
 
-interface PendingWorkout {
+export interface PendingWorkout {
   id: string
   userId: string
   result: WorkoutResult
@@ -14,191 +23,176 @@ interface PendingWorkout {
   queuedAt: string
 }
 
-function getPendingWorkouts(): PendingWorkout[] {
+export function getPendingWorkouts(): PendingWorkout[] {
   try {
-    return JSON.parse(localStorage.getItem(PENDING_WORKOUTS_KEY) || "[]")
+    const items: PendingWorkout[] = JSON.parse(
+      localStorage.getItem(PENDING_WORKOUTS_KEY) || "[]"
+    )
+    // Entries queued by older app versions have no client session id.
+    let migrated = false
+    for (const w of items) {
+      if (!w.result.sessionId) {
+        w.result.sessionId = crypto.randomUUID()
+        migrated = true
+      }
+    }
+    if (migrated) writePendingWorkouts(items)
+    return items
   } catch {
     return []
   }
 }
 
-function savePendingWorkouts(workouts: PendingWorkout[]) {
+function writePendingWorkouts(workouts: PendingWorkout[]) {
   localStorage.setItem(PENDING_WORKOUTS_KEY, JSON.stringify(workouts))
+  window.dispatchEvent(new Event(PENDING_CHANGED_EVENT))
 }
 
+function enqueue(workout: PendingWorkout) {
+  const pending = getPendingWorkouts().filter((w) => w.id !== workout.id)
+  writePendingWorkouts([...pending, workout])
+}
+
+function dequeue(id: string) {
+  writePendingWorkouts(getPendingWorkouts().filter((w) => w.id !== id))
+}
+
+/** Subscribe to queue changes (this tab and other tabs). */
+export function subscribePendingWorkouts(callback: () => void) {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === PENDING_WORKOUTS_KEY) callback()
+  }
+  window.addEventListener(PENDING_CHANGED_EVENT, callback)
+  window.addEventListener("storage", onStorage)
+  return () => {
+    window.removeEventListener(PENDING_CHANGED_EVENT, callback)
+    window.removeEventListener("storage", onStorage)
+  }
+}
+
+// Syncs run one at a time: in this tab via a promise chain, across tabs via
+// the Web Locks API where available. A run started while another is in flight
+// waits for it and then picks up anything queued in the meantime.
+let syncChain: Promise<unknown> = Promise.resolve()
+
+function syncPending(): Promise<Set<string>> {
+  const run = async (): Promise<Set<string>> =>
+    navigator.locks
+      ? await navigator.locks.request("gymmat-workout-sync", syncPendingNow)
+      : syncPendingNow()
+  const next = syncChain.then(run, run)
+  syncChain = next.catch(() => {})
+  return next
+}
+
+async function syncPendingNow(): Promise<Set<string>> {
+  const synced = new Set<string>()
+  const pending = getPendingWorkouts()
+  if (pending.length === 0) return synced
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const currentUserId = session?.user.id
+  if (!currentUserId) return synced
+
+  for (const w of pending) {
+    // Another account's workout stays queued until that user signs back in.
+    if (w.userId !== currentUserId) continue
+    try {
+      await saveWorkout(w.result, w.rating)
+      dequeue(w.id)
+      synced.add(w.id)
+    } catch (error) {
+      if (import.meta.env.DEV) console.error("Workout sync failed:", error)
+    }
+  }
+
+  if (synced.size > 0) invalidateWorkoutQueries()
+  return synced
+}
+
+function invalidateWorkoutQueries() {
+  for (const key of [
+    "workout-history",
+    "workout-days",
+    "previous-sets",
+    "personal-records",
+    "exercise-history",
+    "weekly-volume",
+    "user-exercises",
+  ]) {
+    queryClient.invalidateQueries({ queryKey: [key] })
+  }
+}
+
+/**
+ * Queues the workout locally, then tries to sync it. Never throws: if the
+ * network fails the workout stays queued and is retried automatically.
+ */
 export async function saveWorkoutWithOfflineSupport(
   userId: string,
   result: WorkoutResult,
   rating: number | null
-): Promise<WorkoutSession | "queued"> {
-  try {
-    return await saveWorkout(userId, result, rating)
-  } catch (error) {
-    if (!navigator.onLine) {
-      const pending = getPendingWorkouts()
-      pending.push({
-        id: crypto.randomUUID(),
-        userId,
-        result,
-        rating,
-        queuedAt: new Date().toISOString(),
-      })
-      savePendingWorkouts(pending)
-      return "queued"
-    }
-    throw error
-  }
+): Promise<"saved" | "queued"> {
+  enqueue({
+    id: result.sessionId,
+    userId,
+    result,
+    rating,
+    queuedAt: new Date().toISOString(),
+  })
+  const synced = await syncPending()
+  return synced.has(result.sessionId) ? "saved" : "queued"
 }
 
+/** Background retry (app start, back online, app foregrounded, manual). */
 export async function processPendingWorkouts() {
-  const pending = getPendingWorkouts()
-  if (pending.length === 0) return
-
-  const remaining: PendingWorkout[] = []
-  for (const w of pending) {
-    try {
-      await saveWorkout(w.userId, w.result, w.rating)
-      console.log(`Synced pending workout from ${w.queuedAt}`)
-    } catch {
-      remaining.push(w)
-    }
+  const synced = await syncPending()
+  if (synced.size > 0) {
+    toast.success(
+      `${synced.size} pending workout${synced.size > 1 ? "s" : ""} synced`
+    )
   }
-  savePendingWorkouts(remaining)
+  return synced
 }
 
 // --- Core save logic ---
 
+/**
+ * Saves session + completed sets + new personal records in one transaction
+ * (`save_workout` RPC). Idempotent on `result.sessionId`.
+ */
 export async function saveWorkout(
-  userId: string,
   result: WorkoutResult,
   rating: number | null
-) {
-  // 1. Create session
-  const { data: sessionData, error: sessionError } = await supabase
-    .from("workout_sessions")
-    .insert({
-      user_id: userId,
+): Promise<WorkoutSession> {
+  const sets = result.exercises.flatMap((ex) =>
+    ex.sets
+      .filter((s) => s.completed)
+      .map((s) => ({
+        id: s.id,
+        exercise_id: s.exerciseId,
+        set_number: s.setNumber,
+        set_type: s.setType,
+        reps: s.reps,
+        weight: s.weight,
+      }))
+  )
+
+  const { data, error } = await supabase.rpc("save_workout", {
+    p_session: {
+      id: result.sessionId,
       routine_id: result.routineId,
       name: result.routineName,
       started_at: result.startedAt,
       completed_at: result.completedAt,
       duration_seconds: result.durationSeconds,
       rating,
-    })
-    .select()
-    .single()
+    },
+    p_sets: sets,
+  })
 
-  if (sessionError) throw sessionError
-  const session = sessionData as unknown as WorkoutSession
-
-  // 2. Insert all completed sets
-  const completedSets = result.exercises.flatMap((ex) =>
-    ex.sets
-      .filter((s) => s.completed)
-      .map((s) => ({
-        session_id: session.id,
-        exercise_id: s.exerciseId,
-        set_number: s.setNumber,
-        set_type: s.setType,
-        reps: s.reps,
-        weight: s.weight,
-        is_pr: s.isPR,
-        completed_at: result.completedAt,
-      }))
-  )
-
-  if (completedSets.length > 0) {
-    const { error: setsError } = await supabase
-      .from("workout_sets")
-      .insert(completedSets)
-
-    if (setsError) throw setsError
-  }
-
-  // 3. Check and update personal records
-  await checkAndUpdatePRs(userId, result)
-
-  return session
-}
-
-async function checkAndUpdatePRs(userId: string, result: WorkoutResult) {
-  // Collect all exercise IDs from this workout
-  const exerciseIds = result.exercises
-    .filter((ex) => ex.sets.some((s) => s.completed))
-    .map((ex) => ex.exerciseId)
-
-  if (exerciseIds.length === 0) return
-
-  // Batch fetch ALL existing PRs for these exercises in one query
-  const { data: existingPRs } = await supabase
-    .from("personal_records")
-    .select("exercise_id, record_type, value")
-    .eq("user_id", userId)
-    .in("exercise_id", exerciseIds)
-
-  const prMap = new Map<string, number>()
-  for (const pr of (existingPRs ?? []) as { exercise_id: string; record_type: string; value: number }[]) {
-    prMap.set(`${pr.exercise_id}:${pr.record_type}`, pr.value)
-  }
-
-  // Compare and collect upserts
-  const upserts: {
-    user_id: string
-    exercise_id: string
-    record_type: "max_weight" | "max_reps" | "max_volume"
-    value: number
-    achieved_at: string
-  }[] = []
-
-  const now = new Date().toISOString()
-
-  for (const exercise of result.exercises) {
-    const completedSets = exercise.sets.filter((s) => s.completed)
-    if (completedSets.length === 0) continue
-
-    const maxWeight = Math.max(
-      ...completedSets
-        .filter((s) => s.weight != null && s.weight > 0)
-        .map((s) => s.weight!),
-      -Infinity
-    )
-    const maxReps = Math.max(
-      ...completedSets
-        .filter((s) => s.reps != null && s.reps > 0)
-        .map((s) => s.reps!),
-      -Infinity
-    )
-    const maxVolume = Math.max(
-      ...completedSets
-        .filter((s) => s.reps != null && s.weight != null)
-        .map((s) => (s.reps ?? 0) * (s.weight ?? 0)),
-      -Infinity
-    )
-
-    const candidates = [
-      { type: "max_weight" as const, value: maxWeight },
-      { type: "max_reps" as const, value: maxReps },
-      { type: "max_volume" as const, value: maxVolume },
-    ].filter((pr) => pr.value > 0 && isFinite(pr.value))
-
-    for (const pr of candidates) {
-      const existing = prMap.get(`${exercise.exerciseId}:${pr.type}`)
-      if (existing == null || pr.value > existing) {
-        upserts.push({
-          user_id: userId,
-          exercise_id: exercise.exerciseId,
-          record_type: pr.type,
-          value: pr.value,
-          achieved_at: now,
-        })
-      }
-    }
-  }
-
-  // Batch upsert all new PRs in one query
-  if (upserts.length > 0) {
-    await supabase
-      .from("personal_records")
-      .upsert(upserts, { onConflict: "user_id,exercise_id,record_type" })
-  }
+  if (error) throw error
+  return data as WorkoutSession
 }

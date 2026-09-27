@@ -12,10 +12,15 @@ import {
 } from "@/hooks/useWorkoutHistory"
 import { formatDuration, formatWeight } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { useConfirm } from "@/components/ConfirmDialog"
+import { QueryError } from "@/components/QueryError"
 import type { WorkoutSession } from "@/types/workout"
 
 export function HistoryPage() {
-  const { sessions, isLoading, deleteSession } = useWorkoutHistory()
+  const { sessions, isLoading, isError, refetch, deleteSession } =
+    useWorkoutHistory()
+  const confirm = useConfirm()
   const workoutDays = useWorkoutDays()
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
@@ -68,7 +73,9 @@ export function HistoryPage() {
       )}
 
       {/* Session list */}
-      {isLoading ? (
+      {isError ? (
+        <QueryError onRetry={() => refetch()} />
+      ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -96,9 +103,18 @@ export function HistoryPage() {
                   expandedSession === session.id ? null : session.id
                 )
               }
-              onDelete={() => {
-                if (confirm("Delete this workout session?")) {
-                  deleteSession.mutate(session.id)
+              onDelete={async () => {
+                if (
+                  await confirm({
+                    title: "Delete workout?",
+                    description: "This workout session will be permanently removed.",
+                    confirmLabel: "Delete",
+                    destructive: true,
+                  })
+                ) {
+                  deleteSession.mutate(session.id, {
+                    onSuccess: () => toast.success("Workout deleted"),
+                  })
                 }
               }}
             />
@@ -172,6 +188,7 @@ function SessionCard({
                 onDelete()
               }}
               title="Delete session"
+              aria-label="Delete session"
             >
               <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </button>
@@ -206,14 +223,15 @@ function SessionDetail({
   detail: NonNullable<ReturnType<typeof useSessionDetail>["session"]>
 }) {
   // Group sets by exercise
+  const { sets } = detail
   const exerciseGroups = useMemo(() => {
     const groups: {
       exerciseId: string
       exerciseName: string
-      sets: typeof detail.sets
+      sets: typeof sets
     }[] = []
 
-    for (const set of detail.sets) {
+    for (const set of sets) {
       const existing = groups.find((g) => g.exerciseId === set.exercise_id)
       if (existing) {
         existing.sets.push(set)
@@ -227,7 +245,7 @@ function SessionDetail({
     }
 
     return groups
-  }, [detail.sets])
+  }, [sets])
 
   return (
     <div className="space-y-3">

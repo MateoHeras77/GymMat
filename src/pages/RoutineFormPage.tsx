@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
 import { useRoutines } from "@/hooks/useRoutines"
 
 export function RoutineFormPage() {
@@ -34,8 +35,10 @@ export function RoutineFormPage() {
           ? parseInt(estimatedDuration)
           : null,
       })
+      toast.success("Routine created")
       navigate(`/routines/${result.id}`)
     } catch {
+      toast.error("Could not create routine. Please try again.")
       setSaving(false)
     }
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Play,
@@ -11,25 +11,24 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  useActiveWorkoutStore,
-  type WorkoutResult,
-} from "@/stores/activeWorkoutStore"
+import { useActiveWorkoutStore } from "@/stores/activeWorkoutStore"
 import { useTimerStore } from "@/stores/timerStore"
 import { useAuth } from "@/hooks/useAuth"
 import { SetLogger } from "@/components/workout/SetLogger"
+import { WorkoutTimer } from "@/components/workout/WorkoutTimer"
 import { RestTimer } from "@/components/workout/RestTimer"
 import { WorkoutSummary } from "@/components/workout/WorkoutSummary"
 import { saveWorkoutWithOfflineSupport } from "@/services/workoutService"
 import { toast } from "sonner"
 import { useWakeLock } from "@/hooks/useWakeLock"
 import { usePreviousSets } from "@/hooks/usePreviousSets"
-import { formatDuration } from "@/lib/constants"
 import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
+import { useConfirm } from "@/components/ConfirmDialog"
 
 export function WorkoutPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const confirm = useConfirm()
 
   const {
     isActive,
@@ -45,71 +44,68 @@ export function WorkoutPage() {
     changeSetType,
     finishWorkout,
     cancelWorkout,
+    pendingResult: workoutResult,
+    clearPendingResult,
   } = useActiveWorkoutStore()
 
   const { startTimer } = useTimerStore()
   useWakeLock(isActive)
 
-  const [workoutResult, setWorkoutResult] = useState<WorkoutResult | null>(null)
   const [saving, setSaving] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
   const [previewGif, setPreviewGif] = useState<{
     url: string; name: string
   } | null>(null)
 
-  // Elapsed time ticker
-  useEffect(() => {
-    if (!isActive || !startedAt) return
-    const interval = setInterval(() => {
-      setElapsed(
-        Math.floor(
-          (Date.now() - new Date(startedAt).getTime()) / 1000
-        )
-      )
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [isActive, startedAt])
-
   const currentExercise = exercises[currentExerciseIndex]
   const previousSets = usePreviousSets(currentExercise?.exerciseId)
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     const completedSets = exercises.flatMap((ex) =>
       ex.sets.filter((s) => s.completed)
     )
     if (completedSets.length === 0) {
-      if (confirm("No sets completed. Discard workout?")) {
+      if (
+        await confirm({
+          title: "Discard workout?",
+          description: "No sets were completed, so nothing will be saved.",
+          confirmLabel: "Discard",
+          destructive: true,
+        })
+      ) {
         cancelWorkout()
         navigate("/")
       }
       return
     }
 
-    const result = finishWorkout()
-    if (result) {
-      setWorkoutResult(result)
-    }
+    finishWorkout()
   }
 
   const handleSaveWorkout = async (rating: number | null) => {
     if (!workoutResult || !user) return
     setSaving(true)
-    try {
-      const result = await saveWorkoutWithOfflineSupport(user.id, workoutResult, rating)
-      if (result === "queued") {
-        toast.info("Workout saved offline. It will sync when you're back online.")
-      }
-      setWorkoutResult(null)
-      navigate("/")
-    } catch (err) {
-      console.error("Failed to save workout:", err)
-      toast.error("Failed to save workout. Please try again.")
-      setSaving(false)
+    // Queues locally before touching the network and never throws, so the
+    // pending result can always be cleared afterwards (a retry is idempotent).
+    const outcome = await saveWorkoutWithOfflineSupport(user.id, workoutResult, rating)
+    clearPendingResult()
+    if (outcome === "saved") {
+      toast.success("Workout saved")
+    } else {
+      toast.info("Saved on this device. It will sync automatically when the connection is back.")
     }
+    navigate("/")
   }
 
-  const handleCancel = () => {
-    if (confirm("Cancel workout? All progress will be lost.")) {
+  const handleCancel = async () => {
+    if (
+      await confirm({
+        title: "Cancel workout?",
+        description: "All progress in this session will be lost.",
+        confirmLabel: "Cancel workout",
+        cancelLabel: "Keep going",
+        destructive: true,
+      })
+    ) {
       cancelWorkout()
       navigate("/")
     }
@@ -164,7 +160,7 @@ export function WorkoutPage() {
           <h1 className="text-lg font-bold">{routineName}</h1>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
-            <span>{formatDuration(elapsed)}</span>
+            <WorkoutTimer startedAt={startedAt} />
             <span>·</span>
             <span>
               {exercises.flatMap((e) => e.sets).filter((s) => s.completed).length}{" "}

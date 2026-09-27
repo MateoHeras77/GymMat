@@ -16,6 +16,8 @@
   * {
     @apply border-border outline-ring/50;
     touch-action: manipulation;
+    /* No grey flash when tapping buttons in standalone PWA */
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     @apply bg-background text-foreground;
@@ -25,10 +27,33 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
+    /* Suppress the iOS long-press selection callout / magnifier on UI chrome */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* Re-enable selection where it actually matters (form fields) */
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  html,
+  body {
+    /* Kill the full-page rubber-band bounce in standalone mode */
+    overscroll-behavior-y: none;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Fixed bottom bars (BottomNav, RestTimer, ActiveWorkoutBanner) need their own
+   safe-area padding — they're position:fixed so the body padding doesn't reach
+   them, leaving them under the iPhone home indicator. */
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @theme inline {

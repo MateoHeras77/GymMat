@@ -9,7 +9,12 @@ export type PRWithExercise = PersonalRecord & { exercise: Exercise }
 export function usePersonalRecords() {
   const { user } = useAuth()
 
-  const { data: records = [], isLoading } = useQuery({
+  const {
+    data: records = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["personal-records", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -26,13 +31,18 @@ export function usePersonalRecords() {
     enabled: !!user,
   })
 
-  return { records, isLoading }
+  return { records, isLoading, isError, refetch }
 }
 
 export function useExerciseHistory(exerciseId: string | undefined) {
   const { user } = useAuth()
 
-  const { data: sets = [], isLoading } = useQuery({
+  const {
+    data: sets = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["exercise-history", user?.id, exerciseId],
     queryFn: async () => {
       if (!user || !exerciseId) return []
@@ -57,13 +67,18 @@ export function useExerciseHistory(exerciseId: string | undefined) {
     enabled: !!user && !!exerciseId,
   })
 
-  return { sets, isLoading }
+  return { sets, isLoading, isError, refetch }
 }
 
 export function useWeeklyVolume() {
   const { user } = useAuth()
 
-  const { data: weeklyData = [], isLoading } = useQuery({
+  const {
+    data: weeklyData = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["weekly-volume", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -88,14 +103,19 @@ export function useWeeklyVolume() {
     enabled: !!user,
   })
 
-  return { weeklyData, isLoading }
+  return { weeklyData, isLoading, isError, refetch }
 }
 
 export function useBodyMeasurements() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  const { data: measurements = [], isLoading } = useQuery({
+  const {
+    data: measurements = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["body-measurements", user?.id],
     queryFn: async () => {
       if (!user) return []
@@ -139,7 +159,14 @@ export function useBodyMeasurements() {
     },
   })
 
-  return { measurements, isLoading, addMeasurement, deleteMeasurement }
+  return {
+    measurements,
+    isLoading,
+    isError,
+    refetch,
+    addMeasurement,
+    deleteMeasurement,
+  }
 }
 
 export function useUserExercises() {

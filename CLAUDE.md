@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Working Docs
+
+- `docs/ROADMAP.md` — active to-do list (phases + backlog). Check it at the start of a session; mark items `[x]` only after they are implemented **and verified**.
+- `docs/LESSONS.md` — dated log of non-obvious lessons and decisions. Append an entry whenever something surprising is learned (infra quirks, gotchas, design decisions).
+
 ## Commands
 
 ```bash
@@ -10,9 +15,8 @@ npm run build      # TypeScript check + production build (tsc -b && vite build)
 npm run lint       # ESLint
 npm run preview    # Preview production build
 npx tsc --noEmit   # Type-check without emitting
+npm test           # Vitest (jsdom) — src/**/*.test.ts
 ```
-
-No test framework is configured.
 
 ## Architecture
 
@@ -26,7 +30,7 @@ GymMat is a mobile-first PWA gym workout tracker built with React 19 + TypeScrip
 - **Forms**: React Hook Form + Zod v4
 - **Routing**: React Router v7 with `createBrowserRouter` in `src/router.tsx`. All pages are **lazy-loaded** via `React.lazy()` + `Suspense`.
 - **Charts**: Recharts v3 (only loaded in ProgressPage chunk)
-- **PWA**: vite-plugin-pwa with Workbox service worker, offline mutation queue in `src/lib/offlineQueue.ts`
+- **PWA**: vite-plugin-pwa with Workbox service worker; durable workout save queue in `src/services/workoutService.ts`
 
 ### Key Directories
 
@@ -46,7 +50,6 @@ src/
 ├── lib/
 │   ├── supabase.ts      # Supabase client (env vars: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
 │   ├── audioManager.ts  # iOS-compatible audio: singleton AudioContext + HTML5 <audio> fallback
-│   ├── offlineQueue.ts  # Offline mutation queue with toast notifications on sync
 │   └── utils.ts         # cn() helper
 └── types/          # database.ts (auto-generated Supabase types), routine.ts, workout.ts, exercise.ts
 ```
@@ -56,9 +59,10 @@ src/
 - **Custom hooks** follow this pattern: call `useAuth()` for user context → `useQuery` for reads → `useMutation` with `queryClient.invalidateQueries()` for writes
 - **Active workout state** lives in Zustand (not server), persisted to localStorage. Workout is started in `RoutineDetailPage` (which has fresh data), then `WorkoutPage` reads from the store — no query params or cache race conditions.
 - **Supabase queries** are made directly in hooks via `supabase.from('table').select()...` — no separate API layer
-- **Offline mutations** are queued in localStorage and replayed on reconnect (with toast notifications)
+- **Workout saving** is queue-first: the finished workout is persisted (`pendingResult` in the store), then written to the `gymmat-pending-workouts` localStorage queue *before* any request, and only dequeued once the `save_workout` RPC confirms. Retries run on startup / `online` / foreground / manual Retry, serialized so they never overlap. Never gate on `navigator.onLine`.
 - **Delete mutations** always include `.eq("user_id", user.id)` as defense-in-depth alongside RLS
-- **PR detection** uses batch fetch + in-memory comparison + single upsert (not N+1 queries)
+- **`save_workout` RPC** (`supabase/migrations/`) saves session + sets + PRs in one transaction, idempotent on the client-generated session id. PR detection happens in SQL. Weights are stored in **lbs** (canonical); kg is display-only.
+- **Supabase requests** time out (12s, 30s for Edge Functions) via `fetchWithTimeout` in `src/lib/supabase.ts`.
 
 ### Database Tables
 

@@ -13,7 +13,12 @@ interface UseExercisesOptions {
 export function useExercises(options: UseExercisesOptions = {}) {
   const { search, bodyPart, equipment, target } = options
 
-  const { data: allExercises = [], isLoading } = useQuery({
+  const {
+    data: allExercises = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["exercises"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -62,5 +67,14 @@ export function useExercises(options: UseExercisesOptions = {}) {
     return filtered
   }, [allExercises, search, bodyPart, equipment, target])
 
-  return { exercises, allExercises, isLoading, bodyParts, equipmentList, targets }
+  return {
+    exercises,
+    allExercises,
+    isLoading,
+    isError,
+    refetch,
+    bodyParts,
+    equipmentList,
+    targets,
+  }
 }
