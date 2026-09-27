@@ -30,3 +30,6 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/
+
+# E2E screenshots
+e2e-shots/

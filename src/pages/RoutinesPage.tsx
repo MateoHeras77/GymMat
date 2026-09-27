@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRoutines } from "@/hooks/useRoutines"
 import { useConfirm } from "@/components/ConfirmDialog"
 import { QueryError } from "@/components/QueryError"
+import { RoutineTemplates } from "@/components/routines/RoutineTemplates"
 
 export function RoutinesPage() {
   const navigate = useNavigate()
@@ -43,8 +44,11 @@ export function RoutinesPage() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-8">
             <p className="text-muted-foreground">No routines yet</p>
-            <Button onClick={() => navigate("/routines/new")}>
-              Create your first routine
+            <p className="text-center text-xs text-muted-foreground">
+              Start from a template below, or build your own.
+            </p>
+            <Button variant="outline" onClick={() => navigate("/routines/new")}>
+              Create your own
             </Button>
           </CardContent>
         </Card>
@@ -124,6 +128,8 @@ export function RoutinesPage() {
           )}
         </div>
       )}
+
+      {!isError && !isLoading && <RoutineTemplates />}
     </div>
   )
 }

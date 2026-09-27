@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "./useAuth"
 import type { Routine, RoutineInsert } from "@/types/routine"
+import type { RoutineTemplate } from "@/data/routineTemplates"
+import { createRoutineFromTemplate } from "@/services/templateService"
 
 export function useRoutines() {
   const { user } = useAuth()
@@ -68,6 +70,21 @@ export function useRoutines() {
     },
   })
 
+  const createFromTemplate = useMutation({
+    mutationFn: async (templates: RoutineTemplate[]) => {
+      if (!user) throw new Error("Not authenticated")
+      const created: Routine[] = []
+      // Sequential so routines keep the template order (Day 1, Day 2, ...).
+      for (const template of templates) {
+        created.push(await createRoutineFromTemplate(user.id, template))
+      }
+      return created
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["routines"] })
+    },
+  })
+
   const deleteRoutine = useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated")
@@ -90,6 +107,7 @@ export function useRoutines() {
     isError,
     refetch,
     createRoutine,
+    createFromTemplate,
     updateRoutine,
     deleteRoutine,
   }

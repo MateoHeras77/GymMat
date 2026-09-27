@@ -43,7 +43,8 @@ export function ActiveWorkoutBanner() {
   }
 
   return (
-    <div className="fixed bottom-16 left-0 right-0 z-50 safe-bottom">
+    // Sits above the bottom nav, clearing its raised center Workout button.
+    <div className="fixed bottom-[4.75rem] left-0 right-0 z-50 safe-bottom">
       <div className="mx-auto max-w-lg space-y-1.5 px-2">
         {pendingCount > 0 && (
           <div className="flex items-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-white shadow-lg">

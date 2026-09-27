@@ -59,10 +59,12 @@ Sin cambios de schema: datos estáticos en el cliente + mutations existentes (`c
 Equipo del gym: mancuernas, barra + banca, caminadoras, elípticas, remo, estación de poleas/cable crossover
 (con cuerda para pushdown/curl). **Sin** máquinas de pierna (prensa, extensión, curl, abductor/aductor).
 
-- [ ] **2.1** `src/data/routineTemplates.ts` con 5 plantillas (Push / Pull / Legs / Upper / Lower, 6-7 ejercicios).
-- [ ] **2.2** Sección "Templates" en `RoutinesPage` (visible también en el estado vacío para amigos nuevos).
-- [ ] **2.3** Acción "Use template" → crea rutina + ejercicios en la cuenta del usuario.
-- [ ] **2.4** Test + verificación manual + deploy.
+- [x] **2.1** `src/data/routineTemplates.ts` con 5 plantillas (Push / Pull / Legs / Upper / Lower, 6-7 ejercicios).
+      ✅ 30 ejercicios verificados en la DB (todos con GIF).
+- [x] **2.2** Sección "Templates" en `RoutinesPage` (visible también en el estado vacío para amigos nuevos).
+- [x] **2.3** Acción "Use template" → crea rutina + ejercicios en la cuenta del usuario.
+- [x] **2.4** Test + verificación manual + deploy.
+      ✅ Unit tests + E2E en navegador (`npm run test:e2e`). Extra: toasts arriba y banner sin tapar el botón central.
 
 ---
 

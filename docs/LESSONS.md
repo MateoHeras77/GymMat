@@ -54,3 +54,15 @@ Node 25 expone un `localStorage` global experimental que tapa el de jsdom y lanz
 Con `staleTime` de 5 min, el Dashboard mostraba datos viejos después de guardar un entreno.
 → `queryClient` ahora vive en `src/lib/queryClient.ts` para que el servicio de guardado invalide
 historial, PRs y "previous sets" tras sincronizar.
+
+### 2026-09-27 · E2E real: build de producción + usuario temporal
+`npm run test:e2e` (`scripts/e2e.mjs`) maneja Chrome headless (iPhone 13) contra `vite preview` y la DB
+real, con un usuario creado vía admin API y **borrado al final** (cascade limpia sus datos).
+→ Probar offline contra `npm run dev` da falsos fallos: sin service worker, las páginas lazy no cargan
+sin red. Usar siempre el build de producción (`vite preview`), esperar a que el SW controle la página.
+→ Login de la app es solo Google: para E2E se inyecta la sesión en `localStorage`
+(`sb-sptfltpjlsfleanjewul-auth-token`).
+
+### 2026-09-27 · Toasts y banners en móvil
+Con la barra inferior + botón central elevado (`-top-3`), todo lo `fixed bottom-16` queda tapado.
+→ Toasts en `top-center` (con safe-area) y banners en `bottom-[4.75rem]`.

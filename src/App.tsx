@@ -66,7 +66,11 @@ function AppContent() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster />
+      {/* Top on mobile: at the bottom, toasts hide behind the nav and banners. */}
+      <Toaster
+        position="top-center"
+        mobileOffset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+      />
       <PWAUpdatePrompt />
     </>
   )
