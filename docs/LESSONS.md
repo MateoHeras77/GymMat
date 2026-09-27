@@ -66,3 +66,9 @@ sin red. Usar siempre el build de producción (`vite preview`), esperar a que el
 ### 2026-09-27 · Toasts y banners en móvil
 Con la barra inferior + botón central elevado (`-top-3`), todo lo `fixed bottom-16` queda tapado.
 → Toasts en `top-center` (con safe-area) y banners en `bottom-[4.75rem]`.
+
+### 2026-09-27 · Inputs numéricos en iPhone
+- `inputMode="decimal"` en un iPhone en español muestra **coma** decimal → parsear `","` como `"."`.
+- Inputs con `font-size` < 16px hacen que iOS haga zoom al enfocarlos → mantener `text-base`.
+- Un input controlado que convierte lbs⇄kg en cada tecla borra el punto de "62." → guardar el texto
+  crudo mientras tiene foco (`NumberInput` en `SetLogger`).

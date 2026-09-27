@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { topOfRepRange, type LastSet } from "@/lib/weightUnits"
 
 export interface ActiveSet {
   id: string
@@ -21,6 +22,8 @@ export interface ActiveExercise {
   targetWeight: number | null
   restSeconds: number
   sets: ActiveSet[]
+  /** Sets from the most recent session with this exercise (weights in lbs). */
+  lastSets?: LastSet[]
 }
 
 interface ActiveWorkoutState {
@@ -54,6 +57,8 @@ interface ActiveWorkoutState {
   completeSet: (exerciseIndex: number, setIndex: number) => void
   addSet: (exerciseIndex: number) => void
   removeSet: (exerciseIndex: number, setIndex: number) => void
+  /** Sets `weight` (lbs) on every set of the exercise that isn't completed yet. */
+  applyWeightToRemaining: (exerciseIndex: number, weight: number) => void
   changeSetType: (
     exerciseIndex: number,
     setIndex: number,
@@ -82,23 +87,20 @@ function generateSetId(): string {
   return crypto.randomUUID()
 }
 
-function parseTargetReps(targetReps: string): number | null {
-  // Handle ranges like "8-12" → take the higher end
-  const match = targetReps.match(/(\d+)\s*[-–]\s*(\d+)/)
-  if (match) return parseInt(match[2])
-  const single = parseInt(targetReps)
-  return isNaN(single) ? null : single
-}
-
+// Reps start at the goal (top of the range); weight starts at what was lifted
+// in the same set last session, so most sets need zero typing.
 function createSetsForExercise(exercise: ActiveExercise): ActiveSet[] {
-  const reps = parseTargetReps(exercise.targetReps)
+  const reps = topOfRepRange(exercise.targetReps)
+  const last = (exercise.lastSets ?? []).filter((s) => s.setType !== "warmup")
+  const lastWeight = (i: number) =>
+    last[i]?.weight ?? last[last.length - 1]?.weight ?? null
   return Array.from({ length: exercise.targetSets }, (_, i) => ({
     id: generateSetId(),
     exerciseId: exercise.exerciseId,
     setNumber: i + 1,
     setType: "working" as const,
     reps,
-    weight: exercise.targetWeight,
+    weight: lastWeight(i) ?? exercise.targetWeight,
     completed: false,
     isPR: false,
   }))
@@ -145,7 +147,17 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       completeSet: (exerciseIndex, setIndex) => {
         const exercises = [...get().exercises]
         const sets = [...exercises[exerciseIndex].sets]
-        sets[setIndex] = { ...sets[setIndex], completed: true }
+        const done = sets[setIndex]
+        sets[setIndex] = { ...done, completed: true }
+        // Carry this set's numbers into the following sets that are still blank.
+        for (let j = setIndex + 1; j < sets.length; j++) {
+          if (sets[j].completed) continue
+          sets[j] = {
+            ...sets[j],
+            weight: sets[j].weight ?? done.weight,
+            reps: sets[j].reps ?? done.reps,
+          }
+        }
         exercises[exerciseIndex] = { ...exercises[exerciseIndex], sets }
         set({ exercises })
       },
@@ -153,13 +165,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       addSet: (exerciseIndex) => {
         const exercises = [...get().exercises]
         const ex = exercises[exerciseIndex]
+        const previous = ex.sets[ex.sets.length - 1]
         const newSet: ActiveSet = {
           id: generateSetId(),
           exerciseId: ex.exerciseId,
           setNumber: ex.sets.length + 1,
           setType: "working",
-          reps: null,
-          weight: ex.targetWeight,
+          reps: previous?.reps ?? topOfRepRange(ex.targetReps),
+          weight: previous?.weight ?? ex.targetWeight,
           completed: false,
           isPR: false,
         }
@@ -184,6 +197,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           ...exercises[exerciseIndex],
           sets: renumbered,
         }
+        set({ exercises })
+      },
+
+      applyWeightToRemaining: (exerciseIndex, weight) => {
+        const exercises = [...get().exercises]
+        const sets = exercises[exerciseIndex].sets.map((s) =>
+          s.completed ? s : { ...s, weight }
+        )
+        exercises[exerciseIndex] = { ...exercises[exerciseIndex], sets }
         set({ exercises })
       },
 

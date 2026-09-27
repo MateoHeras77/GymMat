@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatDuration } from "@/lib/constants"
 import type { WorkoutResult } from "@/stores/activeWorkoutStore"
+import { useWeightUnit } from "@/hooks/useWeightUnit"
 
 interface WorkoutSummaryProps {
   result: WorkoutResult
@@ -13,6 +14,7 @@ interface WorkoutSummaryProps {
 
 export function WorkoutSummary({ result, onSave, saving }: WorkoutSummaryProps) {
   const [rating, setRating] = useState<number | null>(null)
+  const { unit, toDisplay } = useWeightUnit()
 
   return (
     <div className="space-y-6">
@@ -58,9 +60,9 @@ export function WorkoutSummary({ result, onSave, saving }: WorkoutSummaryProps) 
             <Trophy className="h-5 w-5 text-green-500" />
             <div>
               <p className="text-lg font-bold">
-                {result.totalVolume.toLocaleString()}
+                {Math.round(toDisplay(result.totalVolume)).toLocaleString()}
               </p>
-              <p className="text-xs text-muted-foreground">Volume (lbs)</p>
+              <p className="text-xs text-muted-foreground">Volume ({unit})</p>
             </div>
           </CardContent>
         </Card>

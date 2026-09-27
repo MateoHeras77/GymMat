@@ -81,7 +81,7 @@ try {
   await page.getByText("Day 1 · Push", { exact: true }).first().click()
   await page.getByRole("button", { name: /Start Workout/ }).click()
   await page.waitForURL("**/workout")
-  const weight = page.locator('input[type="number"]').first()
+  const weight = page.getByLabel("Set 1 weight in lbs")
   await weight.fill("135")
   const complete = page.getByTitle("Complete set")
   await complete.first().click()
@@ -121,6 +121,41 @@ try {
   await page.getByText("Day 1 · Push").first().waitFor({ timeout: 10000 })
   await page.screenshot({ path: `${OUT}/6-history.png`, fullPage: true })
   log("history shows the workout ✓")
+
+  // 7. Second Push session: prefill from last time + progression hint (phase 3)
+  await page.goto(`${APP}/routines`)
+  await page.getByText("Day 1 · Push", { exact: true }).first().click()
+  await page.getByRole("button", { name: /Start Workout/ }).click()
+  await page.waitForURL("**/workout")
+  const w1 = page.getByLabel("Set 1 weight in lbs")
+  if ((await w1.inputValue()) !== "135") throw new Error(`prefill: expected 135, got ${await w1.inputValue()}`)
+  log("weight prefilled from last session ✓")
+  await page.getByText(/Try 140 lbs/).waitFor()
+  await page.screenshot({ path: `${OUT}/7-suggestion.png`, fullPage: true })
+  await page.getByRole("button", { name: "Apply" }).click()
+  if ((await w1.inputValue()) !== "140") throw new Error("apply suggestion failed")
+  log("progression hint applied ✓")
+
+  // 8. Finishing every set of an exercise offers the next one
+  const sets = await page.getByTitle("Complete set").count()
+  for (let i = 0; i < sets; i++) await page.getByTitle("Complete set").first().click()
+  await page.getByRole("button", { name: /Next: dumbbell incline bench press/i }).waitFor()
+  await page.screenshot({ path: `${OUT}/8-next.png`, fullPage: true })
+  log("next-exercise button ✓")
+
+  // 9. kg preference: same stored lbs, shown in kg
+  await fetch(`${URL}/rest/v1/user_preferences?user_id=eq.${user.id}`, {
+    method: "PATCH",
+    headers: { apikey: ANON, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ weight_unit: "kg" }),
+  })
+  await page.evaluate(() => sessionStorage.clear())
+  await page.reload()
+  await page.getByRole("button", { name: "1", exact: true }).click()
+  const kg = await page.getByLabel("Set 2 weight in kg").inputValue()
+  if (kg !== "63.5") throw new Error(`kg display: expected 63.5, got ${kg}`)
+  await page.screenshot({ path: `${OUT}/9-kg.png`, fullPage: true })
+  log("kg preference shows 140 lbs as 63.5 kg ✓")
 
   if (errors.length) log("page errors:", errors)
   log("ALL PASSED")

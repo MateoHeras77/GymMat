@@ -7,6 +7,9 @@ import {
   ChevronRight,
   X,
   Clock,
+  TrendingUp,
+  ArrowRight,
+  Flag,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -24,6 +27,8 @@ import { useWakeLock } from "@/hooks/useWakeLock"
 import { usePreviousSets } from "@/hooks/usePreviousSets"
 import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
 import { useConfirm } from "@/components/ConfirmDialog"
+import { useWeightUnit } from "@/hooks/useWeightUnit"
+import { suggestNextWeight, topOfRepRange } from "@/lib/weightUnits"
 
 export function WorkoutPage() {
   const navigate = useNavigate()
@@ -42,6 +47,7 @@ export function WorkoutPage() {
     addSet,
     removeSet,
     changeSetType,
+    applyWeightToRemaining,
     finishWorkout,
     cancelWorkout,
     pendingResult: workoutResult,
@@ -56,8 +62,28 @@ export function WorkoutPage() {
     url: string; name: string
   } | null>(null)
 
+  const { unit, format } = useWeightUnit()
   const currentExercise = exercises[currentExerciseIndex]
-  const previousSets = usePreviousSets(currentExercise?.exerciseId)
+  const fetchedPreviousSets = usePreviousSets(currentExercise?.exerciseId)
+  // Prefer the snapshot taken when the workout started (works offline).
+  const previousSets =
+    currentExercise?.lastSets?.map((s) => ({
+      set_number: s.setNumber,
+      weight: s.weight,
+      reps: s.reps,
+    })) ?? fetchedPreviousSets
+
+  const suggestedWeight = currentExercise
+    ? suggestNextWeight(currentExercise.lastSets, currentExercise.targetReps, unit)
+    : null
+  const showSuggestion =
+    suggestedWeight != null &&
+    currentExercise.sets.some((s) => !s.completed && s.weight !== suggestedWeight)
+  const currentDone =
+    !!currentExercise &&
+    currentExercise.sets.length > 0 &&
+    currentExercise.sets.every((s) => s.completed)
+  const nextExercise = exercises[currentExerciseIndex + 1]
 
   const handleFinish = async () => {
     const completedSets = exercises.flatMap((ex) =>
@@ -258,7 +284,7 @@ export function WorkoutPage() {
                 <p className="text-sm text-muted-foreground">
                   Target: {currentExercise.targetSets} × {currentExercise.targetReps}
                   {currentExercise.targetWeight
-                    ? ` @ ${currentExercise.targetWeight} lbs`
+                    ? ` @ ${format(currentExercise.targetWeight)}`
                     : ""}
                 </p>
                 <Badge variant="secondary" className="mt-1 text-xs">
@@ -268,6 +294,24 @@ export function WorkoutPage() {
             </CardContent>
           </Card>
 
+          {/* Progression hint */}
+          {showSuggestion && (
+            <div className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2">
+              <TrendingUp className="h-5 w-5 shrink-0 text-green-500" />
+              <p className="flex-1 text-sm">
+                You hit {topOfRepRange(currentExercise.targetReps)} reps on every set last
+                time. Try <span className="font-semibold">{format(suggestedWeight)}</span>
+              </p>
+              <Button
+                size="sm"
+                className="h-9"
+                onClick={() => applyWeightToRemaining(currentExerciseIndex, suggestedWeight)}
+              >
+                Apply
+              </Button>
+            </div>
+          )}
+
           {/* Set Logger */}
           <SetLogger
             sets={currentExercise.sets}
@@ -276,19 +320,9 @@ export function WorkoutPage() {
             onUpdateSet={(setIndex, updates) =>
               updateSet(currentExerciseIndex, setIndex, updates)
             }
-            onCompleteSet={(setIndex) => {
+            onCompleteSet={(setIndex) =>
               completeSet(currentExerciseIndex, setIndex)
-              // Auto-advance to next exercise if all sets done
-              const ex = exercises[currentExerciseIndex]
-              const completedAfter =
-                ex.sets.filter((s) => s.completed).length + 1
-              if (
-                completedAfter === ex.sets.length &&
-                currentExerciseIndex < exercises.length - 1
-              ) {
-                // Don't auto-advance, let user navigate
-              }
-            }}
+            }
             onAddSet={() => addSet(currentExerciseIndex)}
             onRemoveSet={(setIndex) =>
               removeSet(currentExerciseIndex, setIndex)
@@ -299,6 +333,24 @@ export function WorkoutPage() {
             onRestTimer={(seconds) => startTimer(seconds)}
             restSeconds={currentExercise.restSeconds}
           />
+
+          {/* Next step once every set of this exercise is done */}
+          {currentDone &&
+            (nextExercise ? (
+              <Button
+                size="lg"
+                className="h-12 w-full"
+                onClick={() => setCurrentExercise(currentExerciseIndex + 1)}
+              >
+                <span className="truncate capitalize">Next: {nextExercise.exerciseName}</span>
+                <ArrowRight className="ml-2 h-4 w-4 shrink-0" />
+              </Button>
+            ) : (
+              <Button size="lg" className="h-12 w-full" onClick={handleFinish}>
+                <Flag className="mr-2 h-4 w-4" />
+                Finish workout
+              </Button>
+            ))}
         </div>
       )}
 

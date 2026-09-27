@@ -10,6 +10,7 @@ import {
   ChevronUp,
   ChevronDown,
   Link2,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -31,6 +32,7 @@ import type { Routine } from "@/types/routine"
 import type { Exercise } from "@/types/exercise"
 import { GifPreviewDialog } from "@/components/exercises/GifPreviewDialog"
 import { toast } from "sonner"
+import { fetchLastSessionSetsQuick } from "@/services/previousSetsService"
 
 export function RoutineDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -76,9 +78,10 @@ export function RoutineDetailPage() {
   const { deleteRoutine } = useRoutines()
   const { isActive, cancelWorkout, startWorkout } = useActiveWorkoutStore()
   const confirm = useConfirm()
+  const [starting, setStarting] = useState(false)
 
   const handleStartWorkout = async () => {
-    if (!routine) return
+    if (!routine || !user) return
 
     if (isActive) {
       if (
@@ -96,6 +99,15 @@ export function RoutineDetailPage() {
       cancelWorkout()
     }
 
+    // Prefill from the last session; capped so a dead connection can't block
+    // starting the workout (falls back to routine targets).
+    setStarting(true)
+    const lastSets = await fetchLastSessionSetsQuick(
+      user.id,
+      routineExercises.map((re) => re.exercise_id)
+    )
+    setStarting(false)
+
     const activeExercises: ActiveExercise[] = routineExercises.map((re) => ({
       exerciseId: re.exercise_id,
       exerciseName: re.exercise.name,
@@ -105,6 +117,7 @@ export function RoutineDetailPage() {
       targetWeight: re.target_weight ? Number(re.target_weight) : null,
       restSeconds: re.rest_seconds,
       sets: [],
+      lastSets: lastSets.get(re.exercise_id),
     }))
 
     startWorkout(routine.id, routine.name, activeExercises)
@@ -294,8 +307,13 @@ export function RoutineDetailPage() {
           className="w-full"
           size="lg"
           onClick={handleStartWorkout}
+          disabled={starting}
         >
-          <Play className="mr-2 h-4 w-4" />
+          {starting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-4 w-4" />
+          )}
           Start Workout
         </Button>
       )}

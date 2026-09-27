@@ -70,16 +70,23 @@ Equipo del gym: mancuernas, barra + banca, caminadoras, elípticas, remo, estaci
 
 ## Fase 3 — Mejoras de uso en el gym
 
-- [ ] **3.1** Rellenar peso/reps con la última sesión real (hoy solo se muestra "Previous" como referencia).
-- [ ] **3.2** Sugerencia de progresión ("+2.5 kg?") si se cumplieron todas las reps la vez anterior.
-- [ ] **3.3** Respetar la preferencia kg/lb en `SetLogger` (hoy siempre muestra lb primero).
-- [ ] **3.4** Botones/inputs de 44px mínimo e `inputMode="decimal"` en el registro de series.
-- [ ] **3.5** Aviso de "siguiente ejercicio" al completar la última serie.
-- [ ] **3.6** Test + verificación manual + deploy.
+- [x] **3.1** Rellenar peso/reps con la última sesión real (hoy solo se muestra "Previous" como referencia).
+      ✅ Peso = misma serie de la última sesión (sin warmups); reps = meta del rango. 1 query al iniciar (máx 4 s).
+      Extra: al completar una serie, su peso/reps se copian a las siguientes vacías; "Add Set" copia la anterior.
+- [x] **3.2** Sugerencia de progresión ("+2.5 kg?") si se cumplieron todas las reps la vez anterior.
+- [x] **3.3** Respetar la preferencia kg/lb en `SetLogger` (hoy siempre muestra lb primero).
+      ✅ `src/lib/weightUnits.ts` + `useWeightUnit()`; DB sigue en lbs. Acepta coma decimal (teclado iOS en español).
+- [x] **3.4** Botones/inputs de 44px mínimo e `inputMode="decimal"` en el registro de series.
+- [x] **3.5** Aviso de "siguiente ejercicio" al completar la última serie.
+- [x] **3.6** Test + verificación manual + deploy.
+      ✅ 34 unit tests + E2E extendido (prefill, sugerencia, Next, kg).
 
 ---
 
 ## Backlog (sin fecha)
+
+- Unidades kg/lb también en History y Progress (hoy siguen en lbs).
+- Aviso del rest timer con la pantalla bloqueada (iOS suspende JS/audio en segundo plano).
 
 - "Repeat last workout" desde el Dashboard.
 - Compartir una rutina con un amigo (link/código).
